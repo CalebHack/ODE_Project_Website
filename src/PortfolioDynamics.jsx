@@ -1,0 +1,1582 @@
+import { useState, useMemo, useEffect, useRef, useId } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+  ComposedChart,
+  Area,
+} from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+
+// ---------- KaTeX helper ----------
+function Tex({ tex, display = false }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      katex.render(tex, ref.current, {
+        throwOnError: false,
+        displayMode: display,
+      });
+    }
+  }, [tex, display]);
+  return <span ref={ref} />;
+}
+
+// ---------- Theme tokens ----------
+const theme = {
+  light: {
+    bg: "#fafaf7",
+    panel: "#ffffff",
+    border: "#e5e5e0",
+    text: "#1a1a1a",
+    textMuted: "#6b6b6b",
+    accent: "#2a6f4d",
+    grow: "#2a8a5c",
+    decay: "#c0392b",
+    neutral: "#3b3b3b",
+    grid: "#ececec",
+    curveStroke: ["#2a6f4d", "#4a90c2", "#a86b2c", "#7a4a9c", "#c0392b"],
+  },
+  dark: {
+    bg: "#0f1115",
+    panel: "#161a21",
+    border: "#262b35",
+    text: "#e8e8e6",
+    textMuted: "#9aa0aa",
+    accent: "#5fd49a",
+    grow: "#5fd49a",
+    decay: "#e87d6f",
+    neutral: "#cfcfcf",
+    grid: "#222831",
+    curveStroke: ["#5fd49a", "#7ab8e0", "#e0a76e", "#b894d8", "#e87d6f"],
+  },
+};
+
+// ---------- Math helpers ----------
+const Kstar = (s, d) => (s / d) ** 2;
+
+// Closed form for β = 1/2:
+//   K(t) = [ s/δ + (√K₀ − s/δ) e^{−δt/2} ]²
+const Kof = (t, K0, s, d) => {
+  const A = s / d;
+  const B = Math.sqrt(Math.max(K0, 0)) - A;
+  const v = A + B * Math.exp(-(d * t) / 2);
+  return v * v;
+};
+
+// g(K) = sK^{1/2} − δK
+const gOf = (K, s, d) => s * Math.sqrt(Math.max(K, 0)) - d * K;
+
+const fmt = (x, p = 3) => {
+  if (!isFinite(x)) return "–";
+  if (Math.abs(x) >= 1000) return x.toFixed(0);
+  if (Math.abs(x) >= 10) return x.toFixed(2);
+  return x.toFixed(p);
+};
+
+// ---------- Slider primitive ----------
+function Slider({ label, sym, value, min, max, step, onChange, t, suffix }) {
+  const id = useId();
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 6,
+          fontSize: 13,
+          color: t.textMuted,
+        }}
+      >
+        <label htmlFor={id}>
+          <Tex tex={sym} />{" "}
+          <span style={{ color: t.textMuted, marginLeft: 4 }}>{label}</span>
+        </label>
+        <span style={{ color: t.text, fontVariantNumeric: "tabular-nums" }}>
+          {fmt(value)}
+          {suffix || ""}
+        </span>
+      </div>
+      <input
+        id={id}
+        aria-label={`${label} (${sym})`}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{
+          width: "100%",
+          accentColor: t.accent,
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------- Main component ----------
+export default function PortfolioDynamics() {
+  const [dark, setDark] = useState(false);
+  const t = dark ? theme.dark : theme.light;
+
+  const [K0, setK0] = useState(1);
+  const [s, setS] = useState(0.3);
+  const [d, setD] = useState(0.1);
+  const [tMax, setTMax] = useState(50);
+
+  const Keq = useMemo(() => Kstar(s, d), [s, d]);
+
+  // Family of K0 values around the user's choice — shows convergence from above and below.
+  const k0Family = useMemo(() => {
+    const set = new Set([
+      Math.max(0.05, K0 * 0.1),
+      Math.max(0.1, K0 * 0.5),
+      K0,
+      Keq * 1.5,
+      Keq * 2.5,
+    ]);
+    return [...set]
+      .filter((v) => v > 0 && v <= 25)
+      .sort((a, b) => a - b)
+      .slice(0, 5);
+  }, [K0, Keq]);
+
+  // Solution curve data
+  const curveData = useMemo(() => {
+    const N = 220;
+    const rows = [];
+    for (let i = 0; i <= N; i++) {
+      const tt = (i / N) * tMax;
+      const row = { t: tt };
+      k0Family.forEach((k0, idx) => {
+        row[`k${idx}`] = Kof(tt, k0, s, d);
+      });
+      rows.push(row);
+    }
+    return rows;
+  }, [k0Family, s, d, tMax]);
+
+  // g(K) phase plot data — extended a bit past K* to show decay region
+  const gData = useMemo(() => {
+    const Kmax = Math.max(Keq * 2.2, K0 * 1.2, 1);
+    const N = 200;
+    const rows = [];
+    for (let i = 0; i <= N; i++) {
+      const K = (i / N) * Kmax;
+      const g = gOf(K, s, d);
+      rows.push({ K, g, gPos: g >= 0 ? g : 0, gNeg: g < 0 ? g : 0 });
+    }
+    return rows;
+  }, [s, d, Keq, K0]);
+
+  const halfLife = (2 * Math.log(2)) / d;
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: t.bg,
+        color: t.text,
+        fontFamily:
+          '"Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+        transition: "background 200ms ease, color 200ms ease",
+      }}
+    >
+      <style>{`
+        * { box-sizing: border-box; }
+        input[type=range] { height: 4px; }
+        .panel-title {
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: ${t.textMuted};
+          margin: 0 0 14px;
+          font-weight: 500;
+        }
+        .hero-equation-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+          gap: 20px;
+        }
+        .main-grid {
+          display: grid;
+          grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+          gap: 24px;
+        }
+        .split-heading {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 16px;
+        }
+        @media (max-width: 820px) {
+          .main-grid {
+            grid-template-columns: 1fr;
+          }
+          .parameter-panel {
+            position: static;
+          }
+          .split-heading {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+        }
+      `}</style>
+
+      <div
+        style={{
+          maxWidth: 1180,
+          margin: "0 auto",
+          padding: "32px 28px 80px",
+        }}
+      >
+        {/* Top utility strip (just the theme toggle) */}
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <button
+            onClick={() => setDark((v) => !v)}
+            style={{
+              background: "transparent",
+              color: t.text,
+              border: `1px solid ${t.border}`,
+              padding: "6px 12px",
+              borderRadius: 6,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {dark ? "Light" : "Dark"} mode
+          </button>
+        </header>
+
+        {/* §1 Hero */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          style={{
+            padding: "36px 0 44px",
+            borderBottom: `1px solid ${t.border}`,
+            marginBottom: 36,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 0.5,
+              textTransform: "uppercase",
+              color: t.accent,
+              marginBottom: 14,
+            }}
+          >
+            An interactive ODE study
+          </div>
+          <h1
+            style={{
+              fontSize: "clamp(32px, 5vw, 52px)",
+              lineHeight: 1.08,
+              letterSpacing: "-0.02em",
+              margin: "0 0 12px",
+              fontWeight: 600,
+              color: t.text,
+            }}
+          >
+            Portfolio Reinvestment Dynamics
+          </h1>
+          <div
+            style={{
+              fontSize: "clamp(15px, 1.6vw, 19px)",
+              color: t.textMuted,
+              maxWidth: 720,
+              lineHeight: 1.5,
+              marginBottom: 32,
+            }}
+          >
+            A Solow capital accumulation model applied to portfolio finance —
+            governed by a single nonlinear ODE with a clean closed-form
+            solution at <Tex tex="\beta = 1/2" />.
+          </div>
+
+          <div
+            className="hero-equation-grid"
+            style={{
+            }}
+          >
+            <div
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "18px 22px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: t.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                Governing ODE
+              </div>
+              <Tex display tex="\dfrac{dK}{dt} = sK^{\beta} - \delta K" />
+              <div
+                style={{
+                  fontSize: 12,
+                  color: t.textMuted,
+                  marginTop: 10,
+                  lineHeight: 1.6,
+                }}
+              >
+                <Tex tex="K(t)" /> is investable wealth,{" "}
+                <Tex tex="s\in(0,1)" /> the reinvestment ratio,{" "}
+                <Tex tex="\delta>0" /> the drag rate, and{" "}
+                <Tex tex="\beta\in(0,1)" /> the diminishing-returns exponent.
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "18px 22px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: t.textMuted,
+                  marginBottom: 10,
+                }}
+              >
+                Closed form (β = 1/2)
+              </div>
+              <Tex
+                display
+                tex="K(t) = \!\left[\dfrac{s}{\delta} + \!\left(\sqrt{K_{0}} - \dfrac{s}{\delta}\right)\!e^{-\delta t/2}\right]^{\!2}"
+              />
+              <div
+                style={{
+                  fontSize: 12,
+                  color: t.textMuted,
+                  marginTop: 10,
+                  lineHeight: 1.6,
+                }}
+              >
+                Derived via the substitution <Tex tex="u = K^{1/2}" /> and an
+                integrating factor — see §5. The trajectory always converges
+                to <Tex tex="K^{*} = (s/\delta)^{2}" />.
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Live values strip */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 28,
+            alignItems: "baseline",
+            padding: "0 4px",
+            marginBottom: 28,
+            fontSize: 13,
+            color: t.textMuted,
+          }}
+        >
+          <span>
+            current equilibrium{" "}
+            <span style={{ color: t.text, marginLeft: 6 }}>
+              <Tex
+                tex={`K^{*} = \\left(\\tfrac{s}{\\delta}\\right)^{2} = ${fmt(Keq)}`}
+              />
+            </span>
+          </span>
+          <span>
+            half-life{" "}
+            <span style={{ color: t.text, marginLeft: 6 }}>
+              <Tex tex={`t_{1/2} = \\tfrac{2\\ln 2}{\\delta} = ${fmt(halfLife)}`} />
+            </span>
+          </span>
+        </motion.div>
+
+        {/* Layout: controls + plots */}
+        <div
+          className="main-grid"
+          style={{
+          }}
+        >
+          {/* ---- Controls ---- */}
+          <aside
+            className="parameter-panel"
+            style={{
+              background: t.panel,
+              border: `1px solid ${t.border}`,
+              borderRadius: 10,
+              padding: 20,
+              alignSelf: "start",
+              position: "sticky",
+              top: 16,
+            }}
+          >
+            <h3 className="panel-title">Parameters</h3>
+            <Slider
+              label="initial wealth"
+              sym="K_{0}"
+              value={K0}
+              min={0.05}
+              max={25}
+              step={0.05}
+              onChange={setK0}
+              t={t}
+            />
+            <Slider
+              label="reinvestment ratio"
+              sym="s"
+              value={s}
+              min={0.05}
+              max={0.95}
+              step={0.01}
+              onChange={setS}
+              t={t}
+            />
+            <Slider
+              label="drag rate"
+              sym="\\delta"
+              value={d}
+              min={0.05}
+              max={0.5}
+              step={0.005}
+              onChange={setD}
+              t={t}
+            />
+            <Slider
+              label="time horizon"
+              sym="t_{\\max}"
+              value={tMax}
+              min={5}
+              max={100}
+              step={1}
+              onChange={setTMax}
+              t={t}
+            />
+
+            <div
+              style={{
+                borderTop: `1px solid ${t.border}`,
+                marginTop: 18,
+                paddingTop: 14,
+                fontSize: 12,
+                color: t.textMuted,
+                lineHeight: 1.7,
+              }}
+            >
+              <div>
+                <Tex tex="K^{*}" /> grows with <Tex tex="s" />, shrinks with{" "}
+                <Tex tex="\delta" />.
+              </div>
+              <div>
+                Larger <Tex tex="\delta" /> ⇒ faster convergence, smaller{" "}
+                <Tex tex="K^{*}" />.
+              </div>
+            </div>
+          </aside>
+
+          {/* ---- Right column: plots ---- */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* §2 Solution curves */}
+            <section
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 className="panel-title" style={{ margin: 0 }}>
+                  §2 · Solution curves <Tex tex="K(t)" />
+                </h3>
+                <div style={{ fontSize: 12, color: t.textMuted }}>
+                  curves from a family of <Tex tex="K_{0}" />, all converging
+                  to <Tex tex="K^{*}" />
+                </div>
+              </div>
+
+              <div style={{ width: "100%", height: 360 }}>
+                <ResponsiveContainer>
+                  <LineChart
+                    data={curveData}
+                    margin={{ top: 10, right: 28, left: 8, bottom: 28 }}
+                  >
+                    <CartesianGrid stroke={t.grid} strokeDasharray="2 4" />
+                    <XAxis
+                      dataKey="t"
+                      type="number"
+                      domain={[0, tMax]}
+                      tickFormatter={(v) => v.toFixed(0)}
+                      stroke={t.textMuted}
+                      tick={{ fill: t.textMuted, fontSize: 11 }}
+                      label={{
+                        value: "t",
+                        position: "insideBottom",
+                        offset: -10,
+                        fill: t.textMuted,
+                        fontStyle: "italic",
+                      }}
+                    />
+                    <YAxis
+                      stroke={t.textMuted}
+                      tick={{ fill: t.textMuted, fontSize: 11 }}
+                      tickFormatter={(v) => fmt(v, 1)}
+                      label={{
+                        value: "K(t)",
+                        angle: -90,
+                        position: "insideLeft",
+                        offset: 18,
+                        fill: t.textMuted,
+                        fontStyle: "italic",
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: t.panel,
+                        border: `1px solid ${t.border}`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: t.text,
+                      }}
+                      labelFormatter={(v) => `t = ${fmt(v, 2)}`}
+                      formatter={(v, n) => [fmt(v), n]}
+                    />
+                    <ReferenceLine
+                      y={Keq}
+                      stroke={t.neutral}
+                      strokeDasharray="6 4"
+                      label={{
+                        value: `K* = ${fmt(Keq)}`,
+                        position: "right",
+                        fill: t.neutral,
+                        fontSize: 11,
+                      }}
+                    />
+                    {k0Family.map((k0, idx) => (
+                      <Line
+                        key={idx}
+                        type="monotone"
+                        dataKey={`k${idx}`}
+                        name={`K₀ = ${fmt(k0, 2)}`}
+                        stroke={t.curveStroke[idx % t.curveStroke.length]}
+                        strokeWidth={k0 === K0 ? 2.4 : 1.4}
+                        dot={false}
+                        isAnimationActive={false}
+                        opacity={k0 === K0 ? 1 : 0.75}
+                      />
+                    ))}
+                    <Legend
+                      verticalAlign="top"
+                      height={28}
+                      wrapperStyle={{ fontSize: 11, color: t.textMuted }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {/* §3 Phase line */}
+            <section
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 className="panel-title" style={{ margin: 0 }}>
+                  §3 · Phase line on <Tex tex="K" />
+                </h3>
+                <div style={{ fontSize: 12, color: t.textMuted }}>
+                  arrows show sign of <Tex tex="dK/dt" />
+                </div>
+              </div>
+
+              <PhaseLine Keq={Keq} K0={K0} t={t} />
+            </section>
+
+            {/* §4 g(K) phase plot */}
+            <section
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  marginBottom: 12,
+                }}
+              >
+                <h3 className="panel-title" style={{ margin: 0 }}>
+                  §4 · <Tex tex="g(K) = sK^{1/2} - \delta K" />
+                </h3>
+                <div style={{ fontSize: 12, color: t.textMuted }}>
+                  zero crossing locates <Tex tex="K^{*}" />
+                </div>
+              </div>
+
+              <div style={{ width: "100%", height: 320 }}>
+                <ResponsiveContainer>
+                  <ComposedChart
+                    data={gData}
+                    margin={{ top: 10, right: 28, left: 8, bottom: 28 }}
+                  >
+                    <CartesianGrid stroke={t.grid} strokeDasharray="2 4" />
+                    <XAxis
+                      dataKey="K"
+                      type="number"
+                      domain={["dataMin", "dataMax"]}
+                      tickFormatter={(v) => fmt(v, 1)}
+                      stroke={t.textMuted}
+                      tick={{ fill: t.textMuted, fontSize: 11 }}
+                      label={{
+                        value: "K",
+                        position: "insideBottom",
+                        offset: -10,
+                        fill: t.textMuted,
+                        fontStyle: "italic",
+                      }}
+                    />
+                    <YAxis
+                      stroke={t.textMuted}
+                      tick={{ fill: t.textMuted, fontSize: 11 }}
+                      tickFormatter={(v) => fmt(v, 2)}
+                      label={{
+                        value: "g(K)",
+                        angle: -90,
+                        position: "insideLeft",
+                        offset: 18,
+                        fill: t.textMuted,
+                        fontStyle: "italic",
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: t.panel,
+                        border: `1px solid ${t.border}`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: t.text,
+                      }}
+                      labelFormatter={(v) => `K = ${fmt(v, 2)}`}
+                      formatter={(v, n) => {
+                        if (n === "gPos" || n === "gNeg") return [null, null];
+                        return [fmt(v, 3), "g(K)"];
+                      }}
+                    />
+                    <ReferenceLine y={0} stroke={t.textMuted} />
+                    <ReferenceLine
+                      x={Keq}
+                      stroke={t.neutral}
+                      strokeDasharray="6 4"
+                      label={{
+                        value: `K* = ${fmt(Keq)}`,
+                        position: "top",
+                        fill: t.neutral,
+                        fontSize: 11,
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="gPos"
+                      stroke="none"
+                      fill={t.grow}
+                      fillOpacity={0.18}
+                      isAnimationActive={false}
+                      legendType="none"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="gNeg"
+                      stroke="none"
+                      fill={t.decay}
+                      fillOpacity={0.18}
+                      isAnimationActive={false}
+                      legendType="none"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="g"
+                      stroke={t.text}
+                      strokeWidth={1.8}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 18,
+                  fontSize: 12,
+                  color: t.textMuted,
+                  marginTop: 6,
+                }}
+              >
+                <span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 10,
+                      height: 10,
+                      background: t.grow,
+                      opacity: 0.6,
+                      borderRadius: 2,
+                      marginRight: 6,
+                      verticalAlign: "middle",
+                    }}
+                  />
+                  g(K) &gt; 0 — capital accumulates
+                </span>
+                <span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 10,
+                      height: 10,
+                      background: t.decay,
+                      opacity: 0.6,
+                      borderRadius: 2,
+                      marginRight: 6,
+                      verticalAlign: "middle",
+                    }}
+                  />
+                  g(K) &lt; 0 — capital decays
+                </span>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        {/* §5 Derivation — full width below the grid */}
+        <Derivation t={t} Keq={Keq} s={s} d={d} K0={K0} />
+
+        {/* §6 Financial interpretation */}
+        <Interpretation t={t} s={s} d={d} />
+      </div>
+    </div>
+  );
+}
+
+// ---------- §5 Derivation (collapsible) ----------
+const STEPS = [
+  {
+    title: "Step 1 — Equilibria",
+    summary: "Set dK/dt = 0 and solve.",
+    body: (
+      <>
+        <p>
+          Equilibria of <Tex tex="\dot K = sK^{1/2} - \delta K" /> satisfy{" "}
+          <Tex tex="\dot K = 0" />:
+        </p>
+        <Tex
+          display
+          tex="sK^{1/2} - \delta K = K^{1/2}\!\left(s - \delta K^{1/2}\right) = 0."
+        />
+        <p>
+          The two roots give an unstable equilibrium at{" "}
+          <Tex tex="K = 0" /> and an interior equilibrium
+        </p>
+        <Tex display tex="K^{*} = \left(\dfrac{s}{\delta}\right)^{2}." />
+      </>
+    ),
+  },
+  {
+    title: "Step 2 — Sign analysis & stability",
+    summary: "Check the sign of g(K) on each side of K*.",
+    body: (
+      <>
+        <p>
+          Write <Tex tex="g(K) = sK^{1/2} - \delta K = K^{1/2}(s - \delta K^{1/2})" />
+          . For <Tex tex="0 < K < K^{*}" /> we have{" "}
+          <Tex tex="K^{1/2} < s/\delta" />, so <Tex tex="g(K) > 0" /> and{" "}
+          <Tex tex="K" /> grows. For <Tex tex="K > K^{*}" />, the sign flips
+          and <Tex tex="K" /> decays.
+        </p>
+        <p>Linearizing at the interior equilibrium,</p>
+        <Tex
+          display
+          tex="g'(K) = \tfrac{s}{2}K^{-1/2} - \delta,\qquad g'(K^{*}) = \tfrac{s}{2}\!\cdot\!\tfrac{\delta}{s} - \delta = -\tfrac{\delta}{2} < 0,"
+        />
+        <p>
+          so <Tex tex="K^{*}" /> is asymptotically stable. The point{" "}
+          <Tex tex="K = 0" /> is unstable since <Tex tex="g'(K)\to+\infty" />{" "}
+          as <Tex tex="K\to 0^{+}" />.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: "Step 3 — Substitution u = K^{1/2}",
+    summary: "Linearize the equation by substituting u = √K.",
+    body: (
+      <>
+        <p>
+          Let <Tex tex="u = K^{1/2}" />, so <Tex tex="K = u^{2}" /> and{" "}
+          <Tex tex="\dot K = 2u\,\dot u" />. The ODE becomes
+        </p>
+        <Tex display tex="2u\,\dot u = s u - \delta u^{2}." />
+        <p>
+          For <Tex tex="u > 0" />, dividing by <Tex tex="u" /> gives a linear
+          first-order equation in <Tex tex="u" />:
+        </p>
+        <Tex
+          display
+          tex="\dot u + \tfrac{\delta}{2}\,u = \tfrac{s}{2}."
+        />
+      </>
+    ),
+  },
+  {
+    title: "Step 4 — Integrating factor",
+    summary: "Solve the linear ODE for u(t).",
+    body: (
+      <>
+        <p>
+          The integrating factor is <Tex tex="\mu(t) = e^{\delta t/2}" />.
+          Multiplying through,
+        </p>
+        <Tex
+          display
+          tex="\dfrac{d}{dt}\!\left(e^{\delta t/2}\,u\right) = \tfrac{s}{2}\,e^{\delta t/2}."
+        />
+        <p>Integrating both sides,</p>
+        <Tex
+          display
+          tex="e^{\delta t/2}\,u(t) = \dfrac{s}{\delta}\,e^{\delta t/2} + C \;\Longrightarrow\; u(t) = \dfrac{s}{\delta} + C\,e^{-\delta t/2}."
+        />
+        <p>
+          Applying <Tex tex="u(0) = \sqrt{K_{0}}" /> gives{" "}
+          <Tex tex="C = \sqrt{K_{0}} - s/\delta" />, so
+        </p>
+        <Tex
+          display
+          tex="u(t) = \dfrac{s}{\delta} + \!\left(\sqrt{K_{0}} - \dfrac{s}{\delta}\right)\!e^{-\delta t/2}."
+        />
+      </>
+    ),
+  },
+  {
+    title: "Step 5 — Back-substitution",
+    summary: "Square u(t) to recover K(t).",
+    body: (
+      <>
+        <p>
+          Since <Tex tex="K = u^{2}" />,
+        </p>
+        <Tex
+          display
+          tex="\boxed{\,K(t) = \!\left[\dfrac{s}{\delta} + \!\left(\sqrt{K_{0}} - \dfrac{s}{\delta}\right)\!e^{-\delta t/2}\right]^{\!2}.\,}"
+        />
+        <p>
+          As <Tex tex="t\to\infty" />, the exponential term vanishes and{" "}
+          <Tex tex="K(t)\to (s/\delta)^{2} = K^{*}" />, confirming the
+          stability result of Step 2. The decay timescale is set by{" "}
+          <Tex tex="\delta/2" />, giving the half-life{" "}
+          <Tex tex="t_{1/2} = \dfrac{2\ln 2}{\delta}" />.
+        </p>
+      </>
+    ),
+  },
+];
+
+function Derivation({ t, Keq, s, d, K0 }) {
+  const [open, setOpen] = useState(() => new Set([0]));
+  const allOpen = open.size === STEPS.length;
+
+  const toggle = (i) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+
+  const expandAll = () =>
+    setOpen(allOpen ? new Set() : new Set(STEPS.map((_, i) => i)));
+
+  return (
+    <section
+      style={{
+        background: t.panel,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        padding: 24,
+        marginTop: 24,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 18,
+        }}
+      >
+        <h3 className="panel-title" style={{ margin: 0 }}>
+          §5 · Mathematical derivation
+        </h3>
+        <button
+          onClick={expandAll}
+          style={{
+            background: "transparent",
+            color: t.textMuted,
+            border: `1px solid ${t.border}`,
+            padding: "5px 10px",
+            borderRadius: 6,
+            fontSize: 11,
+            letterSpacing: 0.4,
+            cursor: "pointer",
+          }}
+        >
+          {allOpen ? "collapse all" : "expand all"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {STEPS.map((step, i) => {
+          const isOpen = open.has(i);
+          return (
+            <div
+              key={i}
+              style={{
+                borderTop: i === 0 ? `1px solid ${t.border}` : "none",
+                borderBottom: `1px solid ${t.border}`,
+              }}
+            >
+              <button
+                onClick={() => toggle(i)}
+                aria-expanded={isOpen}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "transparent",
+                  color: t.text,
+                  border: "none",
+                  padding: "14px 4px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontSize: 15,
+                  fontFamily: "inherit",
+                }}
+              >
+                <span style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontWeight: 500 }}>{step.title}</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: t.textMuted,
+                      marginTop: 2,
+                    }}
+                  >
+                    {step.summary}
+                  </span>
+                </span>
+                <motion.span
+                  animate={{ rotate: isOpen ? 90 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{
+                    color: t.textMuted,
+                    fontSize: 14,
+                    display: "inline-block",
+                    marginLeft: 12,
+                  }}
+                >
+                  ▸
+                </motion.span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    key="content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div
+                      style={{
+                        padding: "4px 4px 18px",
+                        color: t.text,
+                        lineHeight: 1.7,
+                        fontSize: 15,
+                      }}
+                    >
+                      <style>{`
+                        .deriv-body p { margin: 0 0 10px; }
+                        .deriv-body p:last-child { margin-bottom: 0; }
+                      `}</style>
+                      <div className="deriv-body">{step.body}</div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Numerical sanity-check chip */}
+      <div
+        style={{
+          marginTop: 18,
+          padding: "10px 14px",
+          background: "transparent",
+          border: `1px dashed ${t.border}`,
+          borderRadius: 8,
+          fontSize: 12,
+          color: t.textMuted,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 18,
+        }}
+      >
+        <span>
+          current parameters · <Tex tex={`s=${fmt(s, 2)}`} />,{" "}
+          <Tex tex={`\\delta=${fmt(d, 2)}`} />,{" "}
+          <Tex tex={`K_{0}=${fmt(K0, 2)}`} />
+        </span>
+        <span>
+          ⇒ <Tex tex={`K^{*}=(s/\\delta)^{2}=${fmt(Keq)}`} />
+        </span>
+        <span>
+          ⇒ <Tex tex={`t_{1/2}=\\tfrac{2\\ln 2}{\\delta}=${fmt((2 * Math.log(2)) / d)}`} />
+        </span>
+      </div>
+    </section>
+  );
+}
+
+// ---------- Phase line (SVG) ----------
+function PhaseLine({ Keq, K0, t }) {
+  // axis range: 0 → max(2·K*, 1.5·K0, 1)
+  const Kmax = Math.max(Keq * 2, K0 * 1.5, 1);
+  const W = 880;
+  const H = 130;
+  const padX = 40;
+  const axisY = 78;
+
+  const xOf = (K) => padX + (K / Kmax) * (W - 2 * padX);
+
+  // Sample arrow positions in (0, K*) and (K*, Kmax)
+  const left = [0.15, 0.35, 0.6, 0.85].map((f) => f * Keq);
+  const right = [1.15, 1.4, 1.7].map((f) => f * Keq).filter((K) => K < Kmax);
+
+  const Arrow = ({ K, dir }) => {
+    const x = xOf(K);
+    const len = 22;
+    const x0 = dir > 0 ? x - len / 2 : x + len / 2;
+    const x1 = dir > 0 ? x + len / 2 : x - len / 2;
+    const color = dir > 0 ? t.grow : t.decay;
+    return (
+      <g>
+        <line
+          x1={x0}
+          y1={axisY}
+          x2={x1}
+          y2={axisY}
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+        <polygon
+          points={
+            dir > 0
+              ? `${x1},${axisY} ${x1 - 6},${axisY - 4} ${x1 - 6},${axisY + 4}`
+              : `${x1},${axisY} ${x1 + 6},${axisY - 4} ${x1 + 6},${axisY + 4}`
+          }
+          fill={color}
+        />
+      </g>
+    );
+  };
+
+  return (
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg
+        aria-labelledby="phase-line-title phase-line-desc"
+        role="img"
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        style={{ display: "block", maxWidth: "100%" }}
+      >
+        <title id="phase-line-title">Phase line for capital dynamics</title>
+        <desc id="phase-line-desc">
+          Arrows point right below the stable equilibrium and left above it.
+        </desc>
+        {/* shaded growth/decay regions */}
+        <rect
+          x={xOf(0)}
+          y={axisY - 16}
+          width={xOf(Keq) - xOf(0)}
+          height={32}
+          fill={t.grow}
+          opacity={0.08}
+        />
+        <rect
+          x={xOf(Keq)}
+          y={axisY - 16}
+          width={xOf(Kmax) - xOf(Keq)}
+          height={32}
+          fill={t.decay}
+          opacity={0.08}
+        />
+
+        {/* axis */}
+        <line
+          x1={padX}
+          y1={axisY}
+          x2={W - padX}
+          y2={axisY}
+          stroke={t.textMuted}
+          strokeWidth={1}
+        />
+
+        {/* tick markers + labels along axis */}
+        {[0, Keq / 2, Keq, (Keq + Kmax) / 2, Kmax].map((K, i) => (
+          <g key={i}>
+            <line
+              x1={xOf(K)}
+              y1={axisY - 4}
+              x2={xOf(K)}
+              y2={axisY + 4}
+              stroke={t.textMuted}
+              strokeWidth={1}
+            />
+            <text
+              x={xOf(K)}
+              y={axisY + 22}
+              fill={t.textMuted}
+              fontSize={10}
+              textAnchor="middle"
+              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+            >
+              {fmt(K, 2)}
+            </text>
+          </g>
+        ))}
+
+        {/* arrows */}
+        {left.map((K, i) => (
+          <Arrow key={`l${i}`} K={K} dir={+1} />
+        ))}
+        {right.map((K, i) => (
+          <Arrow key={`r${i}`} K={K} dir={-1} />
+        ))}
+
+        {/* K = 0 (unstable) */}
+        <g>
+          <circle
+            cx={xOf(0)}
+            cy={axisY}
+            r={6}
+            fill={t.bg}
+            stroke={t.decay}
+            strokeWidth={2}
+          />
+          <text
+            x={xOf(0)}
+            y={axisY - 22}
+            fill={t.text}
+            fontSize={11}
+            textAnchor="middle"
+          >
+            K = 0
+          </text>
+          <text
+            x={xOf(0)}
+            y={axisY - 36}
+            fill={t.decay}
+            fontSize={10}
+            textAnchor="middle"
+            fontStyle="italic"
+          >
+            unstable
+          </text>
+        </g>
+
+        {/* K* (stable) */}
+        <g>
+          <circle cx={xOf(Keq)} cy={axisY} r={6} fill={t.accent} />
+          <text
+            x={xOf(Keq)}
+            y={axisY - 22}
+            fill={t.text}
+            fontSize={11}
+            textAnchor="middle"
+          >
+            K* = {fmt(Keq)}
+          </text>
+          <text
+            x={xOf(Keq)}
+            y={axisY - 36}
+            fill={t.accent}
+            fontSize={10}
+            textAnchor="middle"
+            fontStyle="italic"
+          >
+            stable
+          </text>
+        </g>
+
+        {/* current K0 marker */}
+        {K0 <= Kmax && (
+          <g>
+            <line
+              x1={xOf(K0)}
+              y1={axisY - 12}
+              x2={xOf(K0)}
+              y2={axisY + 12}
+              stroke={t.text}
+              strokeWidth={1.5}
+            />
+            <text
+              x={xOf(K0)}
+              y={axisY + 38}
+              fill={t.text}
+              fontSize={10}
+              textAnchor="middle"
+            >
+              K₀
+            </text>
+          </g>
+        )}
+      </svg>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 18,
+          fontSize: 12,
+          color: t.textMuted,
+          marginTop: 8,
+        }}
+      >
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: t.grow,
+              borderRadius: 2,
+              marginRight: 6,
+              verticalAlign: "middle",
+            }}
+          />
+          dK/dt &gt; 0 (growth)
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: t.decay,
+              borderRadius: 2,
+              marginRight: 6,
+              verticalAlign: "middle",
+            }}
+          />
+          dK/dt &lt; 0 (decay)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------- §6 Financial interpretation ----------
+function Interpretation({ t, s, d }) {
+  const sValues = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9];
+  const dValues = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5];
+
+  // pick the table cell closest to the user's current (s, δ)
+  const closest = (arr, x) =>
+    arr.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a));
+  const activeS = closest(sValues, s);
+  const activeD = closest(dValues, d);
+
+  const cell = (sv, dv) => {
+    const K = (sv / dv) ** 2;
+    const half = (2 * Math.log(2)) / dv;
+    return { K, half };
+  };
+
+  // Color a cell on a green→neutral→red ramp based on K* magnitude (log-scaled)
+  const allK = sValues.flatMap((sv) => dValues.map((dv) => (sv / dv) ** 2));
+  const lo = Math.min(...allK);
+  const hi = Math.max(...allK);
+  const heat = (K) => {
+    const x = (Math.log(K) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
+    // 0 (small K*) → red tint, 1 (large K*) → green tint
+    const r = Math.round(192 + (95 - 192) * x);
+    const g = Math.round(57 + (212 - 57) * x);
+    const b = Math.round(43 + (154 - 43) * x);
+    return `rgba(${r}, ${g}, ${b}, 0.16)`;
+  };
+
+  return (
+    <section
+      style={{
+        background: t.panel,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        padding: 24,
+        marginTop: 24,
+      }}
+    >
+      <h3 className="panel-title" style={{ marginTop: 0 }}>
+        §6 · Financial interpretation
+      </h3>
+
+      {/* Two prose columns */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 24,
+          marginBottom: 26,
+        }}
+      >
+        <div
+          style={{
+            borderLeft: `3px solid ${t.grow}`,
+            paddingLeft: 14,
+            color: t.text,
+            lineHeight: 1.7,
+            fontSize: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: t.grow,
+              marginBottom: 6,
+            }}
+          >
+            Reinvestment <Tex tex="s" /> ↑
+          </div>
+          A larger reinvestment ratio compounds more of each period's return
+          back into capital, lifting the equilibrium quadratically:{" "}
+          <Tex tex="K^{*} = (s/\delta)^{2}" />. Doubling <Tex tex="s" />{" "}
+          quadruples <Tex tex="K^{*}" />. The half-life{" "}
+          <Tex tex="t_{1/2} = 2\ln 2 / \delta" /> is independent of{" "}
+          <Tex tex="s" />, so increased reinvestment raises the destination
+          but does not change how fast the portfolio gets there.
+        </div>
+
+        <div
+          style={{
+            borderLeft: `3px solid ${t.decay}`,
+            paddingLeft: 14,
+            color: t.text,
+            lineHeight: 1.7,
+            fontSize: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: t.decay,
+              marginBottom: 6,
+            }}
+          >
+            Drag <Tex tex="\delta" /> ↑
+          </div>
+          The drag rate captures fees, inflation, and withdrawals — every
+          dollar of capital is taxed at rate <Tex tex="\delta" />. Higher
+          drag lowers the equilibrium (<Tex tex="K^{*}\propto 1/\delta^{2}" />)
+          but paradoxically <em>shortens</em> the half-life
+          (<Tex tex="t_{1/2}\propto 1/\delta" />): the portfolio reaches its
+          smaller resting state more quickly. There is no free lunch —
+          faster convergence comes at the cost of a lower terminal capital.
+        </div>
+      </div>
+
+      {/* Sensitivity table */}
+      <div style={{ marginBottom: 8, fontSize: 12, color: t.textMuted }}>
+        Sensitivity of <Tex tex="K^{*}" /> to{" "}
+        <Tex tex="(s, \delta)" />. Cell shows{" "}
+        <Tex tex="K^{*}" /> with <Tex tex="t_{1/2}" /> below in muted text.
+        The cell closest to your current parameters is highlighted.
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            width: "100%",
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 13,
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  fontWeight: 500,
+                  color: t.textMuted,
+                  borderBottom: `1px solid ${t.border}`,
+                  fontSize: 12,
+                }}
+              >
+                <Tex tex="s \,\backslash\, \delta" />
+              </th>
+              {dValues.map((dv) => (
+                <th
+                  key={dv}
+                  style={{
+                    padding: "10px 12px",
+                    textAlign: "center",
+                    fontWeight: 500,
+                    color:
+                      Math.abs(dv - activeD) < 1e-9 ? t.text : t.textMuted,
+                    borderBottom: `1px solid ${t.border}`,
+                    fontSize: 12,
+                  }}
+                >
+                  <Tex tex={`\\delta=${dv}`} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sValues.map((sv) => (
+              <tr key={sv}>
+                <td
+                  style={{
+                    padding: "8px 12px",
+                    color:
+                      Math.abs(sv - activeS) < 1e-9 ? t.text : t.textMuted,
+                    fontWeight:
+                      Math.abs(sv - activeS) < 1e-9 ? 500 : 400,
+                    borderBottom: `1px solid ${t.border}`,
+                    fontSize: 12,
+                  }}
+                >
+                  <Tex tex={`s=${sv}`} />
+                </td>
+                {dValues.map((dv) => {
+                  const { K, half } = cell(sv, dv);
+                  const isActive =
+                    Math.abs(sv - activeS) < 1e-9 &&
+                    Math.abs(dv - activeD) < 1e-9;
+                  return (
+                    <td
+                      key={dv}
+                      style={{
+                        padding: "8px 12px",
+                        textAlign: "center",
+                        background: heat(K),
+                        borderBottom: `1px solid ${t.border}`,
+                        outline: isActive
+                          ? `2px solid ${t.accent}`
+                          : "none",
+                        outlineOffset: -2,
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ color: t.text, fontWeight: 500 }}>
+                        {fmt(K)}
+                      </div>
+                      <div
+                        style={{
+                          color: t.textMuted,
+                          fontSize: 11,
+                          marginTop: 1,
+                        }}
+                      >
+                        t½ {fmt(half, 1)}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          fontSize: 12,
+          color: t.textMuted,
+          lineHeight: 1.6,
+        }}
+      >
+        Read across a row: as <Tex tex="\delta" /> grows, both{" "}
+        <Tex tex="K^{*}" /> and <Tex tex="t_{1/2}" /> shrink — drag is
+        unambiguously bad for terminal capital. Read down a column: as{" "}
+        <Tex tex="s" /> grows, <Tex tex="K^{*}" /> grows but{" "}
+        <Tex tex="t_{1/2}" /> is unchanged — reinvestment scales the
+        destination, drag controls the speed.
+      </div>
+    </section>
+  );
+}
