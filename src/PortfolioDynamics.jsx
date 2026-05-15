@@ -75,6 +75,20 @@ const Kof = (t, K0, s, d) => {
 // g(K) = sK^{1/2} − δK
 const gOf = (K, s, d) => s * Math.sqrt(Math.max(K, 0)) - d * K;
 
+const midpointTime = (K0, s, d) => {
+  const Keq = Kstar(s, d);
+  if (Math.abs(Keq - K0) < 1e-9) return 0;
+
+  const A = s / d;
+  const target = (K0 + Keq) / 2;
+  const numerator = Math.sqrt(target) - A;
+  const denominator = Math.sqrt(K0) - A;
+  const ratio = numerator / denominator;
+
+  if (ratio <= 0 || ratio >= 1 || !isFinite(ratio)) return null;
+  return (-2 * Math.log(ratio)) / d;
+};
+
 const fmt = (x, p = 3) => {
   if (!isFinite(x)) return "–";
   if (Math.abs(x) >= 1000) return x.toFixed(0);
@@ -181,6 +195,7 @@ export default function PortfolioDynamics() {
   }, [s, d, Keq, K0]);
 
   const halfLife = (2 * Math.log(2)) / d;
+  const currentMidpointTime = midpointTime(K0, s, d);
 
   return (
     <div
@@ -286,7 +301,7 @@ export default function PortfolioDynamics() {
               marginBottom: 14,
             }}
           >
-            An interactive ODE study
+            Caleb Hack · ODE project · May 12, 2026
           </div>
           <h1
             style={{
@@ -309,9 +324,9 @@ export default function PortfolioDynamics() {
               marginBottom: 32,
             }}
           >
-            A Solow capital accumulation model applied to portfolio finance —
-            governed by a single nonlinear ODE with a clean closed-form
-            solution at <Tex tex="\beta = 1/2" />.
+            This site turns my paper into an interactive model: a
+            Solow-inspired capital accumulation equation reinterpreted for
+            portfolio reinvestment, drag, stability, and long-run wealth.
           </div>
 
           <div
@@ -371,6 +386,41 @@ export default function PortfolioDynamics() {
                   marginBottom: 10,
                 }}
               >
+                Model origin
+              </div>
+              <Tex display tex="Y = K^{\alpha}L^{1-\alpha}" />
+              <div
+                style={{
+                  fontSize: 12,
+                  color: t.textMuted,
+                  marginTop: 10,
+                  lineHeight: 1.6,
+                }}
+              >
+                The project starts with Cobb-Douglas production, follows
+                Solow's reduction to a one-variable dynamic model, then
+                replaces economic output with portfolio wealth and investment
+                drag.
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: t.panel,
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "18px 22px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: t.textMuted,
+                  marginBottom: 10,
+                }}
+              >
                 Closed form (β = 1/2)
               </div>
               <Tex
@@ -385,9 +435,9 @@ export default function PortfolioDynamics() {
                   lineHeight: 1.6,
                 }}
               >
-                Derived via the substitution <Tex tex="u = K^{1/2}" /> and an
-                integrating factor — see §5. The trajectory always converges
-                to <Tex tex="K^{*} = (s/\delta)^{2}" />.
+                For the paper's tractable case <Tex tex="\beta=1/2" />, the
+                substitution <Tex tex="u = K^{1/2}" /> gives this closed form
+                and confirms convergence to <Tex tex="K^{*} = (s/\delta)^{2}" />.
               </div>
             </div>
           </div>
@@ -418,9 +468,19 @@ export default function PortfolioDynamics() {
             </span>
           </span>
           <span>
-            half-life{" "}
+            transformed half-life{" "}
             <span style={{ color: t.text, marginLeft: 6 }}>
               <Tex tex={`t_{1/2} = \\tfrac{2\\ln 2}{\\delta} = ${fmt(halfLife)}`} />
+            </span>
+          </span>
+          <span>
+            midpoint time{" "}
+            <span style={{ color: t.text, marginLeft: 6 }}>
+              {currentMidpointTime === null ? (
+                "not defined"
+              ) : (
+                <Tex tex={`t_{mid} = ${fmt(currentMidpointTime, 2)}`} />
+              )}
             </span>
           </span>
         </motion.div>
@@ -497,12 +557,12 @@ export default function PortfolioDynamics() {
               }}
             >
               <div>
-                <Tex tex="K^{*}" /> grows with <Tex tex="s" />, shrinks with{" "}
-                <Tex tex="\delta" />.
+                <Tex tex="K^{*}" /> is the wealth level where reinvestment
+                exactly offsets drag.
               </div>
               <div>
-                Larger <Tex tex="\delta" /> ⇒ faster convergence, smaller{" "}
-                <Tex tex="K^{*}" />.
+                <Tex tex="t_{mid}" /> follows the paper's midpoint calculation
+                from <Tex tex="K_{0}" /> to <Tex tex="K^{*}" />.
               </div>
             </div>
           </aside>
@@ -1343,35 +1403,21 @@ function PhaseLine({ Keq, K0, t }) {
   );
 }
 
-// ---------- §6 Financial interpretation ----------
+// ---------- §6 Project findings ----------
 function Interpretation({ t, s, d }) {
-  const sValues = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9];
-  const dValues = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5];
+  const paperK0 = 1;
+  const paperRows = [
+    { s: 0.3, d: 0.1 },
+    { s: 0.4, d: 0.1 },
+    { s: 0.3, d: 0.05 },
+    { s: 0.2, d: 0.1 },
+  ].map((row) => ({
+    ...row,
+    K: Kstar(row.s, row.d),
+    midpoint: midpointTime(paperK0, row.s, row.d),
+  }));
 
-  // pick the table cell closest to the user's current (s, δ)
-  const closest = (arr, x) =>
-    arr.reduce((a, b) => (Math.abs(b - x) < Math.abs(a - x) ? b : a));
-  const activeS = closest(sValues, s);
-  const activeD = closest(dValues, d);
-
-  const cell = (sv, dv) => {
-    const K = (sv / dv) ** 2;
-    const half = (2 * Math.log(2)) / dv;
-    return { K, half };
-  };
-
-  // Color a cell on a green→neutral→red ramp based on K* magnitude (log-scaled)
-  const allK = sValues.flatMap((sv) => dValues.map((dv) => (sv / dv) ** 2));
-  const lo = Math.min(...allK);
-  const hi = Math.max(...allK);
-  const heat = (K) => {
-    const x = (Math.log(K) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
-    // 0 (small K*) → red tint, 1 (large K*) → green tint
-    const r = Math.round(192 + (95 - 192) * x);
-    const g = Math.round(57 + (212 - 57) * x);
-    const b = Math.round(43 + (154 - 43) * x);
-    return `rgba(${r}, ${g}, ${b}, 0.16)`;
-  };
+  const activeMidpointTime = midpointTime(paperK0, s, d);
 
   return (
     <section
@@ -1384,14 +1430,13 @@ function Interpretation({ t, s, d }) {
       }}
     >
       <h3 className="panel-title" style={{ marginTop: 0 }}>
-        §6 · Financial interpretation
+        §6 · Numerical example and project takeaways
       </h3>
 
-      {/* Two prose columns */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
           gap: 24,
           marginBottom: 26,
         }}
@@ -1412,17 +1457,16 @@ function Interpretation({ t, s, d }) {
               textTransform: "uppercase",
               color: t.grow,
               marginBottom: 6,
-            }}
-          >
-            Reinvestment <Tex tex="s" /> ↑
+              }}
+            >
+            Paper baseline
           </div>
-          A larger reinvestment ratio compounds more of each period's return
-          back into capital, lifting the equilibrium quadratically:{" "}
-          <Tex tex="K^{*} = (s/\delta)^{2}" />. Doubling <Tex tex="s" />{" "}
-          quadruples <Tex tex="K^{*}" />. The half-life{" "}
-          <Tex tex="t_{1/2} = 2\ln 2 / \delta" /> is independent of{" "}
-          <Tex tex="s" />, so increased reinvestment raises the destination
-          but does not change how fast the portfolio gets there.
+          With <Tex tex="s=0.30" />, <Tex tex="\delta=0.10" />,{" "}
+          <Tex tex="\beta=0.50" />, and <Tex tex="K_{0}=1" />, the stable
+          equilibrium is <Tex tex="K^{*}=9" />. The portfolio does not reach
+          equilibrium in finite time, so the paper solves for the midpoint
+          from <Tex tex="K_{0}=1" /> to <Tex tex="K^{*}=9" />, which is{" "}
+          <Tex tex="K=5" /> and occurs at about <Tex tex="t=19.25" /> years.
         </div>
 
         <div
@@ -1441,26 +1485,27 @@ function Interpretation({ t, s, d }) {
               textTransform: "uppercase",
               color: t.decay,
               marginBottom: 6,
-            }}
-          >
-            Drag <Tex tex="\delta" /> ↑
+              }}
+            >
+            Current slider version
           </div>
-          The drag rate captures fees, inflation, and withdrawals — every
-          dollar of capital is taxed at rate <Tex tex="\delta" />. Higher
-          drag lowers the equilibrium (<Tex tex="K^{*}\propto 1/\delta^{2}" />)
-          but paradoxically <em>shortens</em> the half-life
-          (<Tex tex="t_{1/2}\propto 1/\delta" />): the portfolio reaches its
-          smaller resting state more quickly. There is no free lunch —
-          faster convergence comes at the cost of a lower terminal capital.
+          The controls above let the same calculation vary. Your current
+          settings give <Tex tex={`K^{*}=${fmt(Kstar(s, d), 2)}`} />. Starting
+          from the paper's <Tex tex="K_{0}=1" />, the midpoint time is{" "}
+          {activeMidpointTime === null ? (
+            "not defined for this parameter combination"
+          ) : (
+            <Tex tex={`t_{mid}=${fmt(activeMidpointTime, 2)}`} />
+          )}
+          . Larger <Tex tex="s" /> raises terminal wealth; larger{" "}
+          <Tex tex="\delta" /> lowers terminal wealth by making drag stronger.
         </div>
       </div>
 
-      {/* Sensitivity table */}
       <div style={{ marginBottom: 8, fontSize: 12, color: t.textMuted }}>
-        Sensitivity of <Tex tex="K^{*}" /> to{" "}
-        <Tex tex="(s, \delta)" />. Cell shows{" "}
-        <Tex tex="K^{*}" /> with <Tex tex="t_{1/2}" /> below in muted text.
-        The cell closest to your current parameters is highlighted.
+        Sensitivity table from the paper. The midpoint time uses{" "}
+        <Tex tex="K_{0}=1" /> and solves for halfway from the initial wealth to
+        the new equilibrium.
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -1485,77 +1530,91 @@ function Interpretation({ t, s, d }) {
                   fontSize: 12,
                 }}
               >
-                <Tex tex="s \,\backslash\, \delta" />
+                <Tex tex="s" />
               </th>
-              {dValues.map((dv) => (
-                <th
-                  key={dv}
-                  style={{
-                    padding: "10px 12px",
-                    textAlign: "center",
-                    fontWeight: 500,
-                    color:
-                      Math.abs(dv - activeD) < 1e-9 ? t.text : t.textMuted,
-                    borderBottom: `1px solid ${t.border}`,
-                    fontSize: 12,
-                  }}
-                >
-                  <Tex tex={`\\delta=${dv}`} />
-                </th>
-              ))}
+              <th
+                style={{
+                  padding: "10px 12px",
+                  textAlign: "center",
+                  fontWeight: 500,
+                  color: t.textMuted,
+                  borderBottom: `1px solid ${t.border}`,
+                  fontSize: 12,
+                }}
+              >
+                <Tex tex="\delta" />
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  textAlign: "center",
+                  fontWeight: 500,
+                  color: t.textMuted,
+                  borderBottom: `1px solid ${t.border}`,
+                  fontSize: 12,
+                }}
+              >
+                <Tex tex="K^{*}" />
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  textAlign: "center",
+                  fontWeight: 500,
+                  color: t.textMuted,
+                  borderBottom: `1px solid ${t.border}`,
+                  fontSize: 12,
+                }}
+              >
+                <Tex tex="t_{mid}" /> years
+              </th>
             </tr>
           </thead>
           <tbody>
-            {sValues.map((sv) => (
-              <tr key={sv}>
+            {paperRows.map((row) => (
+              <tr key={`${row.s}-${row.d}`}>
                 <td
                   style={{
                     padding: "8px 12px",
-                    color:
-                      Math.abs(sv - activeS) < 1e-9 ? t.text : t.textMuted,
-                    fontWeight:
-                      Math.abs(sv - activeS) < 1e-9 ? 500 : 400,
+                    color: t.text,
+                    fontWeight: 500,
                     borderBottom: `1px solid ${t.border}`,
                     fontSize: 12,
                   }}
                 >
-                  <Tex tex={`s=${sv}`} />
+                  {fmt(row.s, 2)}
                 </td>
-                {dValues.map((dv) => {
-                  const { K, half } = cell(sv, dv);
-                  const isActive =
-                    Math.abs(sv - activeS) < 1e-9 &&
-                    Math.abs(dv - activeD) < 1e-9;
-                  return (
-                    <td
-                      key={dv}
-                      style={{
-                        padding: "8px 12px",
-                        textAlign: "center",
-                        background: heat(K),
-                        borderBottom: `1px solid ${t.border}`,
-                        outline: isActive
-                          ? `2px solid ${t.accent}`
-                          : "none",
-                        outlineOffset: -2,
-                        position: "relative",
-                      }}
-                    >
-                      <div style={{ color: t.text, fontWeight: 500 }}>
-                        {fmt(K)}
-                      </div>
-                      <div
-                        style={{
-                          color: t.textMuted,
-                          fontSize: 11,
-                          marginTop: 1,
-                        }}
-                      >
-                        t½ {fmt(half, 1)}
-                      </div>
-                    </td>
-                  );
-                })}
+                <td
+                  style={{
+                    padding: "8px 12px",
+                    textAlign: "center",
+                    color: t.text,
+                    borderBottom: `1px solid ${t.border}`,
+                  }}
+                >
+                  {fmt(row.d, 2)}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 12px",
+                    textAlign: "center",
+                    color: t.text,
+                    borderBottom: `1px solid ${t.border}`,
+                    background: row.d === 0.05 ? `${t.grow}22` : "transparent",
+                  }}
+                >
+                  {fmt(row.K, 1)}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 12px",
+                    textAlign: "center",
+                    color: t.text,
+                    borderBottom: `1px solid ${t.border}`,
+                  }}
+                >
+                  {fmt(row.midpoint, 2)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1570,12 +1629,77 @@ function Interpretation({ t, s, d }) {
           lineHeight: 1.6,
         }}
       >
-        Read across a row: as <Tex tex="\delta" /> grows, both{" "}
-        <Tex tex="K^{*}" /> and <Tex tex="t_{1/2}" /> shrink — drag is
-        unambiguously bad for terminal capital. Read down a column: as{" "}
-        <Tex tex="s" /> grows, <Tex tex="K^{*}" /> grows but{" "}
-        <Tex tex="t_{1/2}" /> is unchanged — reinvestment scales the
-        destination, drag controls the speed.
+        Reducing drag from <Tex tex="0.10" /> to <Tex tex="0.05" /> has the
+        largest effect in the table: terminal wealth rises from{" "}
+        <Tex tex="9" /> to <Tex tex="36" />, though the midpoint takes longer
+        because the destination is much farther away.
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))",
+          gap: 18,
+          marginTop: 24,
+        }}
+      >
+        {[
+          {
+            title: "Strengths",
+            body:
+              "The model is analytically tractable, has a stable equilibrium, and reduces the long-run behavior to the interpretable ratio s/delta.",
+          },
+          {
+            title: "Limitations",
+            body:
+              "The model keeps s, delta, and beta fixed. That leaves out changing reinvestment behavior, fluctuating fees, inflation, withdrawals, volatility, and market shocks.",
+          },
+          {
+            title: "Extensions",
+            body:
+              "Natural next steps include making s depend on K, adding stochastic drag with white noise, or comparing two strategies with a two-wealth-variable system.",
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            style={{
+              borderTop: `2px solid ${t.accent}`,
+              paddingTop: 12,
+              color: t.text,
+              lineHeight: 1.65,
+              fontSize: 14,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+                color: t.accent,
+                marginBottom: 6,
+              }}
+            >
+              {item.title}
+            </div>
+            {item.body}
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          marginTop: 22,
+          paddingTop: 18,
+          borderTop: `1px solid ${t.border}`,
+          color: t.text,
+          lineHeight: 1.7,
+          fontSize: 14,
+        }}
+      >
+        Bottom line: the model is a simplified benchmark, but it clearly
+        isolates the core mechanism from the paper. Reinvestment pushes wealth
+        upward, drag pulls it down, and their balance determines the stable
+        long-run capital level.
       </div>
     </section>
   );
