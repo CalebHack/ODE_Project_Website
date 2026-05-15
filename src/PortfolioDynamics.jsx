@@ -194,7 +194,6 @@ export default function PortfolioDynamics() {
     return rows;
   }, [s, d, Keq, K0]);
 
-  const halfLife = (2 * Math.log(2)) / d;
   const currentMidpointTime = midpointTime(K0, s, d);
 
   return (
@@ -301,7 +300,7 @@ export default function PortfolioDynamics() {
               marginBottom: 14,
             }}
           >
-            Caleb Hack · ODE project · May 12, 2026
+            Interactive Solow-style reinvestment model
           </div>
           <h1
             style={{
@@ -324,8 +323,7 @@ export default function PortfolioDynamics() {
               marginBottom: 32,
             }}
           >
-            This site turns my paper into an interactive model: a
-            Solow-inspired capital accumulation equation reinterpreted for
+            A Solow-inspired capital accumulation equation reinterpreted for
             portfolio reinvestment, drag, stability, and long-run wealth.
           </div>
 
@@ -397,10 +395,9 @@ export default function PortfolioDynamics() {
                   lineHeight: 1.6,
                 }}
               >
-                The project starts with Cobb-Douglas production, follows
-                Solow's reduction to a one-variable dynamic model, then
-                replaces economic output with portfolio wealth and investment
-                drag.
+                The model starts with Cobb-Douglas production, follows Solow's
+                reduction to a one-variable dynamic system, then replaces
+                economic output with portfolio wealth and investment drag.
               </div>
             </div>
 
@@ -435,9 +432,9 @@ export default function PortfolioDynamics() {
                   lineHeight: 1.6,
                 }}
               >
-                For the paper's tractable case <Tex tex="\beta=1/2" />, the
-                substitution <Tex tex="u = K^{1/2}" /> gives this closed form
-                and confirms convergence to <Tex tex="K^{*} = (s/\delta)^{2}" />.
+                For the tractable case <Tex tex="\beta=1/2" />, the substitution{" "}
+                <Tex tex="u = K^{1/2}" /> gives this closed form and confirms
+                convergence to <Tex tex="K^{*} = (s/\delta)^{2}" />.
               </div>
             </div>
           </div>
@@ -465,12 +462,6 @@ export default function PortfolioDynamics() {
               <Tex
                 tex={`K^{*} = \\left(\\tfrac{s}{\\delta}\\right)^{2} = ${fmt(Keq)}`}
               />
-            </span>
-          </span>
-          <span>
-            transformed half-life{" "}
-            <span style={{ color: t.text, marginLeft: 6 }}>
-              <Tex tex={`t_{1/2} = \\tfrac{2\\ln 2}{\\delta} = ${fmt(halfLife)}`} />
             </span>
           </span>
           <span>
@@ -561,8 +552,8 @@ export default function PortfolioDynamics() {
                 exactly offsets drag.
               </div>
               <div>
-                <Tex tex="t_{mid}" /> follows the paper's midpoint calculation
-                from <Tex tex="K_{0}" /> to <Tex tex="K^{*}" />.
+                <Tex tex="t_{mid}" /> measures the time to move halfway from{" "}
+                <Tex tex="K_{0}" /> to <Tex tex="K^{*}" />.
               </div>
             </div>
           </aside>
@@ -891,9 +882,9 @@ const STEPS = [
         />
         <p>
           This gives two critical values: <Tex tex="K=0" /> or{" "}
-          <Tex tex="\delta=sK^{\beta-1}" />. Because the project defines
-          wealth as <Tex tex="K\in\mathbb{R}^{+}" />, <Tex tex="K=0" /> is
-          excluded from the model. Solving the remaining condition gives
+          <Tex tex="\delta=sK^{\beta-1}" />. Because wealth is restricted to{" "}
+          <Tex tex="K\in\mathbb{R}^{+}" />, <Tex tex="K=0" /> is excluded from
+          the model. Solving the remaining condition gives
         </p>
         <Tex
           display
@@ -904,7 +895,7 @@ const STEPS = [
           K^{*}=\left(\dfrac{\delta}{s}\right)^{\frac{1}{\beta-1}}."
         />
         <p>
-          This is the equilibrium point from the paper. When{" "}
+          This is the positive equilibrium point. When{" "}
           <Tex tex="\beta=\tfrac12" />, it simplifies to{" "}
           <Tex tex="K^{*}=(s/\delta)^2" />.
         </p>
@@ -960,8 +951,8 @@ const STEPS = [
     body: (
       <>
         <p>
-          The general equation is separable, but the paper chooses{" "}
-          <Tex tex="\beta=\tfrac12" /> to produce a clean closed form:
+          The general equation is separable. Setting{" "}
+          <Tex tex="\beta=\tfrac12" /> produces a clean closed form:
         </p>
         <Tex display tex="\dfrac{dK}{dt}=sK^{1/2}-\delta K." />
         <p>
@@ -1047,7 +1038,7 @@ const STEPS = [
     body: (
       <>
         <p>
-          For the paper's numerical example,{" "}
+          For the baseline numerical example,{" "}
           <Tex tex="s=0.30,\ \delta=0.10,\ \beta=0.50,\ K_0=1" />. The
           equilibrium is computed from the general formula:
         </p>
@@ -1059,8 +1050,8 @@ const STEPS = [
         <p>
           Setting <Tex tex="K(t)=9" /> gives{" "}
           <Tex tex="3=3-2e^{-0.05t}" />, so the model approaches equilibrium
-          asymptotically and never reaches it in finite time. The paper instead
-          solves for the halfway wealth level <Tex tex="K=5" />:
+          asymptotically and never reaches it in finite time. A useful finite
+          benchmark is the halfway wealth level <Tex tex="K=5" />:
         </p>
         <Tex
           display
@@ -1070,7 +1061,7 @@ const STEPS = [
           \approx 19.25."
         />
         <p>
-          This is the midpoint time shown in the project takeaway section.
+          This is the midpoint time shown in the takeaway section.
         </p>
       </>
     ),
@@ -1493,10 +1484,10 @@ function PhaseLine({ Keq, K0, t }) {
   );
 }
 
-// ---------- §6 Project findings ----------
+// ---------- §6 Findings ----------
 function Interpretation({ t, s, d }) {
-  const paperK0 = 1;
-  const paperRows = [
+  const baselineK0 = 1;
+  const sensitivityRows = [
     { s: 0.3, d: 0.1 },
     { s: 0.4, d: 0.1 },
     { s: 0.3, d: 0.05 },
@@ -1504,10 +1495,10 @@ function Interpretation({ t, s, d }) {
   ].map((row) => ({
     ...row,
     K: Kstar(row.s, row.d),
-    midpoint: midpointTime(paperK0, row.s, row.d),
+    midpoint: midpointTime(baselineK0, row.s, row.d),
   }));
 
-  const activeMidpointTime = midpointTime(paperK0, s, d);
+  const activeMidpointTime = midpointTime(baselineK0, s, d);
 
   return (
     <section
@@ -1520,7 +1511,7 @@ function Interpretation({ t, s, d }) {
       }}
     >
       <h3 className="panel-title" style={{ marginTop: 0 }}>
-        §6 · Numerical example and project takeaways
+        §6 · Numerical example and takeaways
       </h3>
 
       <div
@@ -1549,14 +1540,14 @@ function Interpretation({ t, s, d }) {
               marginBottom: 6,
               }}
             >
-            Paper baseline
+            Baseline example
           </div>
           With <Tex tex="s=0.30" />, <Tex tex="\delta=0.10" />,{" "}
           <Tex tex="\beta=0.50" />, and <Tex tex="K_{0}=1" />, the stable
           equilibrium is <Tex tex="K^{*}=9" />. The portfolio does not reach
-          equilibrium in finite time, so the paper solves for the midpoint
+          equilibrium in finite time, so a finite benchmark is the midpoint
           from <Tex tex="K_{0}=1" /> to <Tex tex="K^{*}=9" />, which is{" "}
-          <Tex tex="K=5" /> and occurs at about <Tex tex="t=19.25" /> years.
+          <Tex tex="K=5" /> and occurs at about <Tex tex="t_{mid}=19.25" /> years.
         </div>
 
         <div
@@ -1581,7 +1572,7 @@ function Interpretation({ t, s, d }) {
           </div>
           The controls above let the same calculation vary. Your current
           settings give <Tex tex={`K^{*}=${fmt(Kstar(s, d), 2)}`} />. Starting
-          from the paper's <Tex tex="K_{0}=1" />, the midpoint time is{" "}
+          from <Tex tex="K_{0}=1" />, the midpoint time is{" "}
           {activeMidpointTime === null ? (
             "not defined for this parameter combination"
           ) : (
@@ -1593,9 +1584,8 @@ function Interpretation({ t, s, d }) {
       </div>
 
       <div style={{ marginBottom: 8, fontSize: 12, color: t.textMuted }}>
-        Sensitivity table from the paper. The midpoint time uses{" "}
-        <Tex tex="K_{0}=1" /> and solves for halfway from the initial wealth to
-        the new equilibrium.
+        Sensitivity table for <Tex tex="K_{0}=1" />. The midpoint time solves
+        for halfway from the initial wealth to the new equilibrium.
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -1661,7 +1651,7 @@ function Interpretation({ t, s, d }) {
             </tr>
           </thead>
           <tbody>
-            {paperRows.map((row) => (
+            {sensitivityRows.map((row) => (
               <tr key={`${row.s}-${row.d}`}>
                 <td
                   style={{
@@ -1787,9 +1777,9 @@ function Interpretation({ t, s, d }) {
         }}
       >
         Bottom line: the model is a simplified benchmark, but it clearly
-        isolates the core mechanism from the paper. Reinvestment pushes wealth
-        upward, drag pulls it down, and their balance determines the stable
-        long-run capital level.
+        isolates the core mechanism. Reinvestment pushes wealth upward, drag
+        pulls it down, and their balance determines the stable long-run capital
+        level.
       </div>
     </section>
   );
