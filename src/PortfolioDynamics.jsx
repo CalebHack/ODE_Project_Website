@@ -876,69 +876,107 @@ export default function PortfolioDynamics() {
 // ---------- §5 Derivation (collapsible) ----------
 const STEPS = [
   {
-    title: "Step 1 — Positive equilibrium",
-    summary: "Set dK/dt = 0, then exclude K = 0 from the positive state space.",
+    title: "Step 1 — Equilibrium analysis",
+    summary: "Solve the general beta model before specializing to beta = 1/2.",
     body: (
       <>
         <p>
-          Critical points of <Tex tex="\dot K = sK^{1/2} - \delta K" /> satisfy{" "}
-          <Tex tex="\dot K = 0" />:
+          To find equilibrium, set <Tex tex="\dfrac{dK}{dt}=0" />. Economically,
+          this is the wealth level where reinvestment gains are exactly offset
+          by drag.
         </p>
         <Tex
           display
-          tex="sK^{1/2} - \delta K = K^{1/2}\!\left(s - \delta K^{1/2}\right) = 0."
+          tex="\dfrac{dK}{dt}=sK^{\beta}-\delta K=K\!\left(sK^{\beta-1}-\delta\right)."
         />
         <p>
-          The algebra gives roots at <Tex tex="K=0" /> and{" "}
-          <Tex tex="K=(s/\delta)^2" />. Since the paper defines wealth as{" "}
-          <Tex tex="K\in\mathbb{R}^{+}" />, the boundary value{" "}
-          <Tex tex="K=0" /> is excluded. The model's equilibrium point is
+          This gives two critical values: <Tex tex="K=0" /> or{" "}
+          <Tex tex="\delta=sK^{\beta-1}" />. Because the project defines
+          wealth as <Tex tex="K\in\mathbb{R}^{+}" />, <Tex tex="K=0" /> is
+          excluded from the model. Solving the remaining condition gives
         </p>
-        <Tex display tex="K^{*} = \left(\dfrac{s}{\delta}\right)^{2}." />
+        <Tex
+          display
+          tex="sK^{\beta-1}=\delta
+          \quad\Longrightarrow\quad
+          K^{\beta-1}=\dfrac{\delta}{s}
+          \quad\Longrightarrow\quad
+          K^{*}=\left(\dfrac{\delta}{s}\right)^{\frac{1}{\beta-1}}."
+        />
+        <p>
+          This is the equilibrium point from the paper. When{" "}
+          <Tex tex="\beta=\tfrac12" />, it simplifies to{" "}
+          <Tex tex="K^{*}=(s/\delta)^2" />.
+        </p>
       </>
     ),
   },
   {
     title: "Step 2 — Sign analysis & stability",
-    summary: "Check the sign of g(K) on each side of K*.",
+    summary: "Show dK/dt is positive below K* and negative above K*.",
     body: (
       <>
         <p>
-          Write <Tex tex="g(K) = sK^{1/2} - \delta K = K^{1/2}(s - \delta K^{1/2})" />
-          . For <Tex tex="0 < K < K^{*}" /> we have{" "}
-          <Tex tex="K^{1/2} < s/\delta" />, so <Tex tex="g(K) > 0" /> and{" "}
-          <Tex tex="K" /> grows. For <Tex tex="K > K^{*}" />, the sign flips
-          and <Tex tex="K" /> decays.
+          For <Tex tex="K<K^{*}" />, use the definition{" "}
+          <Tex tex="K^{*}=(\delta/s)^{1/(\beta-1)}" />. Since{" "}
+          <Tex tex="\beta-1<0" />, raising both sides to{" "}
+          <Tex tex="\beta-1" /> flips the inequality:
         </p>
-        <p>Linearizing at the positive equilibrium,</p>
         <Tex
           display
-          tex="g'(K) = \tfrac{s}{2}K^{-1/2} - \delta,\qquad g'(K^{*}) = \tfrac{s}{2}\!\cdot\!\tfrac{\delta}{s} - \delta = -\tfrac{\delta}{2} < 0,"
+          tex="K<K^{*}
+          \quad\Longrightarrow\quad
+          K^{\beta-1}>\dfrac{\delta}{s}
+          \quad\Longrightarrow\quad
+          sK^{\beta}-\delta K>0
+          \quad\Longrightarrow\quad
+          \dfrac{dK}{dt}>0."
         />
         <p>
-          so <Tex tex="K^{*}" /> is asymptotically stable within the positive
-          wealth state space used in the paper.
+          For <Tex tex="K>K^{*}" />, the same inequality reversal gives the
+          opposite sign:
+        </p>
+        <Tex
+          display
+          tex="K>K^{*}
+          \quad\Longrightarrow\quad
+          K^{\beta-1}<\dfrac{\delta}{s}
+          \quad\Longrightarrow\quad
+          sK^{\beta}-\delta K<0
+          \quad\Longrightarrow\quad
+          \dfrac{dK}{dt}<0."
+        />
+        <p>
+          Thus the model increases below <Tex tex="K^{*}" /> and decreases
+          above <Tex tex="K^{*}" />, so the positive equilibrium is stable and
+          trajectories converge to <Tex tex="K^{*}" />.
         </p>
       </>
     ),
   },
   {
-    title: "Step 3 — Substitution u = K^{1/2}",
-    summary: "Linearize the equation by substituting u = √K.",
+    title: "Step 3 — Specialize to beta = 1/2",
+    summary: "Use the tractable case from the analytical solution section.",
     body: (
       <>
         <p>
-          Let <Tex tex="u = K^{1/2}" />, so <Tex tex="K = u^{2}" /> and{" "}
-          <Tex tex="\dot K = 2u\,\dot u" />. The ODE becomes
+          The general equation is separable, but the paper chooses{" "}
+          <Tex tex="\beta=\tfrac12" /> to produce a clean closed form:
         </p>
-        <Tex display tex="2u\,\dot u = s u - \delta u^{2}." />
+        <Tex display tex="\dfrac{dK}{dt}=sK^{1/2}-\delta K." />
         <p>
-          For <Tex tex="u > 0" />, dividing by <Tex tex="u" /> gives a linear
-          first-order equation in <Tex tex="u" />:
+          Let <Tex tex="u=K^{1/2}" />, so <Tex tex="K=u^2" /> and{" "}
+          <Tex tex="\dfrac{dK}{dt}=2u\,\dfrac{du}{dt}" />. Substitution gives
+        </p>
+        <Tex display tex="2u\,\dfrac{du}{dt}=su-\delta u^2." />
+        <p>
+          For <Tex tex="u>0" />, divide by <Tex tex="2u" /> and rearrange:
         </p>
         <Tex
           display
-          tex="\dot u + \tfrac{\delta}{2}\,u = \tfrac{s}{2}."
+          tex="\dfrac{du}{dt}=\dfrac{s}{2}-\dfrac{\delta u}{2}
+          \quad\Longrightarrow\quad
+          \dfrac{du}{dt}+\dfrac{\delta}{2}u=\dfrac{s}{2}."
         />
       </>
     ),
@@ -949,47 +987,90 @@ const STEPS = [
     body: (
       <>
         <p>
-          The integrating factor is <Tex tex="\mu(t) = e^{\delta t/2}" />.
+          The integrating factor is <Tex tex="e^{\int \delta/2\,dt}=e^{\delta t/2}" />.
           Multiplying through,
         </p>
         <Tex
           display
-          tex="\dfrac{d}{dt}\!\left(e^{\delta t/2}\,u\right) = \tfrac{s}{2}\,e^{\delta t/2}."
+          tex="e^{\delta t/2}\!\left(\dfrac{du}{dt}+\dfrac{\delta}{2}u\right)
+          =e^{\delta t/2}\dfrac{s}{2}."
         />
         <p>Integrating both sides,</p>
         <Tex
           display
-          tex="e^{\delta t/2}\,u(t) = \dfrac{s}{\delta}\,e^{\delta t/2} + C \;\Longrightarrow\; u(t) = \dfrac{s}{\delta} + C\,e^{-\delta t/2}."
+          tex="ue^{\delta t/2}=\dfrac{s}{\delta}e^{\delta t/2}+C
+          \quad\Longrightarrow\quad
+          u=\dfrac{s}{\delta}+Ce^{-\delta t/2}."
         />
-        <p>
-          Applying <Tex tex="u(0) = \sqrt{K_{0}}" /> gives{" "}
-          <Tex tex="C = \sqrt{K_{0}} - s/\delta" />, so
-        </p>
         <Tex
           display
-          tex="u(t) = \dfrac{s}{\delta} + \!\left(\sqrt{K_{0}} - \dfrac{s}{\delta}\right)\!e^{-\delta t/2}."
+          tex="K^{1/2}=\dfrac{s}{\delta}+Ce^{-\delta t/2}
+          \quad\Longrightarrow\quad
+          K=\left(\dfrac{s}{\delta}+Ce^{-\delta t/2}\right)^2."
         />
       </>
     ),
   },
   {
-    title: "Step 5 — Back-substitution",
-    summary: "Square u(t) to recover K(t).",
+    title: "Step 5 — Initial condition",
+    summary: "Solve for C using K(0) = K0.",
     body: (
       <>
         <p>
-          Since <Tex tex="K = u^{2}" />,
+          Apply <Tex tex="K(0)=K_0" /> to solve for the constant:
         </p>
         <Tex
           display
-          tex="\boxed{\,K(t) = \!\left[\dfrac{s}{\delta} + \!\left(\sqrt{K_{0}} - \dfrac{s}{\delta}\right)\!e^{-\delta t/2}\right]^{\!2}.\,}"
+          tex="K_0=\left(\dfrac{s}{\delta}+C\right)^2
+          \quad\Longrightarrow\quad
+          \sqrt{K_0}=\dfrac{s}{\delta}+C
+          \quad\Longrightarrow\quad
+          C=\sqrt{K_0}-\dfrac{s}{\delta}."
+        />
+        <p>The closed-form solution is therefore</p>
+        <Tex
+          display
+          tex="\boxed{K(t)=\left(\dfrac{s}{\delta}
+          +\left(\sqrt{K_0}-\dfrac{s}{\delta}\right)e^{-\delta t/2}\right)^2.}"
         />
         <p>
           As <Tex tex="t\to\infty" />, the exponential term vanishes and{" "}
-          <Tex tex="K(t)\to (s/\delta)^{2} = K^{*}" />, confirming the
-          stability result of Step 2. The decay timescale is set by{" "}
-          <Tex tex="\delta/2" />, giving the half-life{" "}
-          <Tex tex="t_{1/2} = \dfrac{2\ln 2}{\delta}" />.
+          <Tex tex="K(t)\to(s/\delta)^2=K^{*}" />, confirming the positive
+          equilibrium.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: "Step 6 — Numerical example",
+    summary: "Use s = 0.30, delta = 0.10, beta = 0.50, and K0 = 1.",
+    body: (
+      <>
+        <p>
+          For the paper's numerical example,{" "}
+          <Tex tex="s=0.30,\ \delta=0.10,\ \beta=0.50,\ K_0=1" />. The
+          equilibrium is computed from the general formula:
+        </p>
+        <Tex
+          display
+          tex="K^{*}=\left(\dfrac{0.10}{0.30}\right)^{\frac{1}{0.5-1}}
+          =\left(\dfrac{1}{3}\right)^{-2}=9."
+        />
+        <p>
+          Setting <Tex tex="K(t)=9" /> gives{" "}
+          <Tex tex="3=3-2e^{-0.05t}" />, so the model approaches equilibrium
+          asymptotically and never reaches it in finite time. The paper instead
+          solves for the halfway wealth level <Tex tex="K=5" />:
+        </p>
+        <Tex
+          display
+          tex="\sqrt{5}=3-2e^{-0.05t}
+          \quad\Longrightarrow\quad
+          t=\dfrac{\ln\!\left((3-\sqrt{5})/2\right)}{-0.05}
+          \approx 19.25."
+        />
+        <p>
+          This is the midpoint time shown in the project takeaway section.
         </p>
       </>
     ),
