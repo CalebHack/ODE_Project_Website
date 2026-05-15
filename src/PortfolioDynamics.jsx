@@ -239,7 +239,7 @@ export default function PortfolioDynamics() {
             grid-template-columns: 1fr;
           }
           .parameter-panel {
-            position: static;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
           }
           .split-heading {
             flex-direction: column;
@@ -493,6 +493,8 @@ export default function PortfolioDynamics() {
               alignSelf: "start",
               position: "sticky",
               top: 16,
+              zIndex: 50,
+              isolation: "isolate",
             }}
           >
             <h3 className="panel-title">Parameters</h3>
