@@ -714,7 +714,7 @@ export default function PortfolioDynamics() {
                 }}
               >
                 <h3 className="panel-title" style={{ margin: 0 }}>
-                  §4 · <Tex tex="g(K) = sK^{1/2} - \delta K" />
+                  §4 · <Tex tex="\dfrac{dK}{dt} = sK^{1/2} - \delta K" />
                 </h3>
                 <div style={{ fontSize: 12, color: t.textMuted }}>
                   zero crossing locates <Tex tex="K^{*}" />
@@ -748,7 +748,7 @@ export default function PortfolioDynamics() {
                       tick={{ fill: t.textMuted, fontSize: 11 }}
                       tickFormatter={(v) => fmt(v, 2)}
                       label={{
-                        value: "g(K)",
+                        value: "dK/dt",
                         angle: -90,
                         position: "insideLeft",
                         offset: 18,
@@ -767,7 +767,7 @@ export default function PortfolioDynamics() {
                       labelFormatter={(v) => `K = ${fmt(v, 2)}`}
                       formatter={(v, n) => {
                         if (n === "gPos" || n === "gNeg") return [null, null];
-                        return [fmt(v, 3), "g(K)"];
+                        return [fmt(v, 3), "dK/dt"];
                       }}
                     />
                     <ReferenceLine y={0} stroke={t.textMuted} />
@@ -834,7 +834,7 @@ export default function PortfolioDynamics() {
                       verticalAlign: "middle",
                     }}
                   />
-                  g(K) &gt; 0 — capital accumulates
+                  dK/dt &gt; 0 — capital accumulates
                 </span>
                 <span>
                   <span
@@ -849,7 +849,7 @@ export default function PortfolioDynamics() {
                       verticalAlign: "middle",
                     }}
                   />
-                  g(K) &lt; 0 — capital decays
+                  dK/dt &lt; 0 — capital decays
                 </span>
               </div>
             </section>
