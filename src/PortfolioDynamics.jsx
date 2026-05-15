@@ -1080,6 +1080,7 @@ const STEPS = [
 function Derivation({ t, Keq, s, d, K0 }) {
   const [open, setOpen] = useState(() => new Set([0]));
   const allOpen = open.size === STEPS.length;
+  const midTime = midpointTime(K0, s, d);
 
   const toggle = (i) =>
     setOpen((prev) => {
@@ -1240,7 +1241,12 @@ function Derivation({ t, Keq, s, d, K0 }) {
           ⇒ <Tex tex={`K^{*}=(s/\\delta)^{2}=${fmt(Keq)}`} />
         </span>
         <span>
-          ⇒ <Tex tex={`t_{1/2}=\\tfrac{2\\ln 2}{\\delta}=${fmt((2 * Math.log(2)) / d)}`} />
+          ⇒{" "}
+          {midTime === null ? (
+            <Tex tex="t_{mid}\text{ not defined}" />
+          ) : (
+            <Tex tex={`t_{mid}=${fmt(midTime, 2)}`} />
+          )}
         </span>
       </div>
     </section>
