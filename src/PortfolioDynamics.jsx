@@ -876,12 +876,12 @@ export default function PortfolioDynamics() {
 // ---------- §5 Derivation (collapsible) ----------
 const STEPS = [
   {
-    title: "Step 1 — Equilibria",
-    summary: "Set dK/dt = 0 and solve.",
+    title: "Step 1 — Positive equilibrium",
+    summary: "Set dK/dt = 0, then exclude K = 0 from the positive state space.",
     body: (
       <>
         <p>
-          Equilibria of <Tex tex="\dot K = sK^{1/2} - \delta K" /> satisfy{" "}
+          Critical points of <Tex tex="\dot K = sK^{1/2} - \delta K" /> satisfy{" "}
           <Tex tex="\dot K = 0" />:
         </p>
         <Tex
@@ -889,8 +889,10 @@ const STEPS = [
           tex="sK^{1/2} - \delta K = K^{1/2}\!\left(s - \delta K^{1/2}\right) = 0."
         />
         <p>
-          The two roots give an unstable equilibrium at{" "}
-          <Tex tex="K = 0" /> and an interior equilibrium
+          The algebra gives roots at <Tex tex="K=0" /> and{" "}
+          <Tex tex="K=(s/\delta)^2" />. Since the paper defines wealth as{" "}
+          <Tex tex="K\in\mathbb{R}^{+}" />, the boundary value{" "}
+          <Tex tex="K=0" /> is excluded. The model's equilibrium point is
         </p>
         <Tex display tex="K^{*} = \left(\dfrac{s}{\delta}\right)^{2}." />
       </>
@@ -908,15 +910,14 @@ const STEPS = [
           <Tex tex="K" /> grows. For <Tex tex="K > K^{*}" />, the sign flips
           and <Tex tex="K" /> decays.
         </p>
-        <p>Linearizing at the interior equilibrium,</p>
+        <p>Linearizing at the positive equilibrium,</p>
         <Tex
           display
           tex="g'(K) = \tfrac{s}{2}K^{-1/2} - \delta,\qquad g'(K^{*}) = \tfrac{s}{2}\!\cdot\!\tfrac{\delta}{s} - \delta = -\tfrac{\delta}{2} < 0,"
         />
         <p>
-          so <Tex tex="K^{*}" /> is asymptotically stable. The point{" "}
-          <Tex tex="K = 0" /> is unstable since <Tex tex="g'(K)\to+\infty" />{" "}
-          as <Tex tex="K\to 0^{+}" />.
+          so <Tex tex="K^{*}" /> is asymptotically stable within the positive
+          wealth state space used in the paper.
         </p>
       </>
     ),
@@ -1220,7 +1221,9 @@ function PhaseLine({ Keq, K0, t }) {
       >
         <title id="phase-line-title">Phase line for capital dynamics</title>
         <desc id="phase-line-desc">
-          Arrows point right below the stable equilibrium and left above it.
+          Arrows point right below the positive equilibrium and left above it.
+          K equals zero is shown only as the excluded boundary of the positive
+          wealth state space.
         </desc>
         {/* shaded growth/decay regions */}
         <rect
@@ -1282,7 +1285,7 @@ function PhaseLine({ Keq, K0, t }) {
           <Arrow key={`r${i}`} K={K} dir={-1} />
         ))}
 
-        {/* K = 0 (unstable) */}
+        {/* K = 0 boundary marker */}
         <g>
           <circle
             cx={xOf(0)}
@@ -1309,7 +1312,7 @@ function PhaseLine({ Keq, K0, t }) {
             textAnchor="middle"
             fontStyle="italic"
           >
-            unstable
+            boundary
           </text>
         </g>
 
