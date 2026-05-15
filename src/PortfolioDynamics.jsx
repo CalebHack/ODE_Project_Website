@@ -579,7 +579,10 @@ export default function PortfolioDynamics() {
                   marginBottom: 12,
                 }}
               >
-                <h3 className="panel-title" style={{ margin: 0 }}>
+                <h3
+                  className="panel-title"
+                  style={{ margin: 0, textTransform: "none" }}
+                >
                   §2 · Solution curves <Tex tex="K(t)" />
                 </h3>
                 <div style={{ fontSize: 12, color: t.textMuted }}>
@@ -713,7 +716,10 @@ export default function PortfolioDynamics() {
                   marginBottom: 12,
                 }}
               >
-                <h3 className="panel-title" style={{ margin: 0 }}>
+                <h3
+                  className="panel-title"
+                  style={{ margin: 0, textTransform: "none" }}
+                >
                   §4 · <Tex tex="\dfrac{dK}{dt} = sK^{1/2} - \delta K" />
                 </h3>
                 <div style={{ fontSize: 12, color: t.textMuted }}>
@@ -725,7 +731,7 @@ export default function PortfolioDynamics() {
                 <ResponsiveContainer>
                   <ComposedChart
                     data={gData}
-                    margin={{ top: 10, right: 28, left: 8, bottom: 28 }}
+                    margin={{ top: 28, right: 28, left: 8, bottom: 28 }}
                   >
                     <CartesianGrid stroke={t.grid} strokeDasharray="2 4" />
                     <XAxis
