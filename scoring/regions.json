@@ -1,0 +1,90 @@
+{
+  "description": "Seven-region scheme for the US county scoring system. Every state (plus DC) belongs to exactly one region and one sub-region. Secondary affinities flag counties that culturally lean toward a neighboring region without changing their primary assignment.",
+  "regions": [
+    {
+      "id": 1,
+      "key": "northeast",
+      "name": "New England & Mid-Atlantic (The Northeast)",
+      "subRegions": {
+        "New England": ["ME", "VT", "NH", "MA", "RI", "CT"],
+        "Mid-Atlantic": ["NY", "PA", "NJ"]
+      }
+    },
+    {
+      "id": 2,
+      "key": "southeast",
+      "name": "The Southeast",
+      "subRegions": {
+        "South Atlantic": ["DE", "MD", "DC", "VA", "WV", "NC", "SC", "GA", "FL"],
+        "East South Central": ["KY", "TN", "MS", "AL"],
+        "West South Central (Cajun/Delta)": ["LA", "AR"]
+      }
+    },
+    {
+      "id": 3,
+      "key": "midwest",
+      "name": "The Midwest",
+      "subRegions": {
+        "East North Central (Great Lakes)": ["OH", "IN", "IL", "MI", "WI"],
+        "West North Central (Great Plains)": ["MN", "IA", "MO", "ND", "SD", "NE", "KS"]
+      }
+    },
+    {
+      "id": 4,
+      "key": "southwest",
+      "name": "The Southwest",
+      "subRegions": {
+        "Southwest": ["TX", "OK", "NM", "AZ"]
+      }
+    },
+    {
+      "id": 5,
+      "key": "mountain_west",
+      "name": "The Mountain West",
+      "subRegions": {
+        "Interior West": ["CO", "WY", "MT", "ID", "UT", "NV"]
+      }
+    },
+    {
+      "id": 6,
+      "key": "pacific_northwest",
+      "name": "The Pacific Northwest",
+      "subRegions": {
+        "Pacific Northwest": ["WA", "OR"]
+      }
+    },
+    {
+      "id": 7,
+      "key": "pacific_noncontiguous",
+      "name": "Non-Contiguous Pacific & West Coast",
+      "subRegions": {
+        "Pacific West": ["CA"],
+        "Outlying Pacific": ["AK", "HI"]
+      }
+    }
+  ],
+  "assignmentDecisions": [
+    "DC is placed in South Atlantic (Census Bureau convention); the brief did not list it.",
+    "Idaho is assigned to the Mountain West only. Its northern counties carry a Pacific Northwest secondary affinity.",
+    "Alaska is assigned to Region 7 (Outlying Pacific) only, though the brief notes it is sometimes grouped with the Pacific Northwest.",
+    "Texas and Oklahoma are assigned to the Southwest, not the Southeast, as the brief specifies. East Texas carries a Southeast secondary affinity."
+  ],
+  "californiaSplit": {
+    "description": "California is tagged NorCal/SoCal using the common 10-county Southern California definition.",
+    "SoCal": ["06025", "06029", "06037", "06059", "06065", "06071", "06073", "06079", "06083", "06111"]
+  },
+  "secondaryAffinities": {
+    "pacific_northwest": {
+      "reason": "Idaho Panhandle / North Central Idaho: Pacific time zone, Spokane-oriented economy, Inland Northwest identity",
+      "fips": ["16009", "16017", "16021", "16035", "16049", "16055", "16057", "16061", "16069", "16079"]
+    },
+    "southeast": {
+      "reason": "East Texas Piney Woods and Southeastern Oklahoma (Little Dixie): Deep South settlement, speech, religion and economy",
+      "fips": ["48001", "48005", "48037", "48063", "48067", "48073", "48159", "48183", "48199", "48203", "48225", "48241", "48291", "48315", "48343", "48347", "48351", "48361", "48365", "48373", "48387", "48401", "48403", "48405", "48407", "48419", "48423", "48449", "48455", "48457", "48459", "48499", "40005", "40013", "40023", "40029", "40061", "40063", "40077", "40079", "40089", "40095", "40121", "40127"]
+    },
+    "midwest": {
+      "reason": "Eastern Colorado / Eastern Montana / Eastern Wyoming High Plains: Great Plains farm and ranch economy",
+      "fips": ["08017", "08025", "08063", "08073", "08075", "08087", "08095", "08099", "08115", "08121", "08125", "30011", "30017", "30019", "30021", "30025", "30033", "30055", "30069", "30075", "30079", "30083", "30085", "30091", "30105", "30109", "56005", "56011", "56015", "56021", "56027", "56031", "56045"]
+    }
+  }
+}

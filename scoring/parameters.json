@@ -1,0 +1,162 @@
+{
+  "name": "US County Scoring System",
+  "version": "0.1.0",
+  "unit": "County-equivalent (counties, Louisiana parishes, Alaska boroughs and census areas, Virginia independent cities, Connecticut planning regions, DC); 2023 Census vintage, 3,144 units",
+  "scale": {
+    "parameter": "Every sub-parameter is scored 0-10 (one decimal). Unless a parameter says otherwise, score = 10 x national percentile rank of the raw metric, so 5.0 is the median US county.",
+    "category": "Category score (0-100) = 10 x weighted mean of its sub-parameter scores.",
+    "signed": "Parameters marked signed run -10 to +10 with 0 as the national reference point (used for partisan lean and trend).",
+    "categorical": "Parameters marked categorical store a label (e.g. dialect region, dominant tradition) alongside a 0-10 intensity score.",
+    "smallCountyShrinkage": "For rate metrics in counties under 5,000 residents, shrink toward the state mean before ranking: x_adj = (n*x + k*mu_state)/(n + k), k = 2,000."
+  },
+  "categories": [
+    {
+      "id": 1,
+      "key": "history",
+      "name": "History",
+      "weight": 1,
+      "description": "How strongly each era of American history is imprinted on the county: population growth, surviving built environment, landmarks and defining events.",
+      "eraImprintFormula": "era_score = 10 x (0.40*G + 0.25*B + 0.20*L + 0.15*V), each term a 0-1 national percentile. G = share of the county's cumulative positive population growth that occurred in the era; B = share of surviving housing stock built in the era; L = NRHP listings whose period of significance falls in the era, per 100 sq mi and per 10k residents (mean of the two percentiles); V = curated event salience flag (0, 0.5 or 1).",
+      "preCensusRule": "Eras before 1790 have no census growth term. Reweight to 0.45*Settlement + 0.35*L + 0.20*V, where Settlement = 1 if a permanent European, African or colonial settlement (English, Spanish, French, Dutch, Swedish or Russian) existed in the county before the era ended, 0.5 if within the claimed but unsettled frontier, 0 otherwise.",
+      "parameters": [
+        { "id": "H01_colonial", "name": "Colonial America", "years": "1565-1775", "censusWindow": null, "note": "Includes Spanish (St. Augustine 1565, Santa Fe 1610, California missions 1769+), French (Louisiana, Illinois Country, Detroit) and Russian (Alaska 1784+) colonial settlement, not only the 13 colonies." },
+        { "id": "H02_founding", "name": "America's founding years", "years": "1776-1815", "censusWindow": "1790-1810", "note": "Revolution through the War of 1812; Northwest Ordinance and Louisiana Purchase." },
+        { "id": "H03_antebellum_civil_war", "name": "Pre-Civil War through Civil War", "years": "1816-1865", "censusWindow": "1810-1860" },
+        { "id": "H04_industrial", "name": "Industrial period", "years": "1866-1919", "censusWindow": "1860-1920", "note": "Reconstruction, Gilded Age, railroads, mass immigration and the Progressive Era reforms (1896-1917), which fall chronologically here." },
+        { "id": "H05_roaring_20s", "name": "Roaring 20s", "years": "1920-1929", "censusWindow": "1920-1930" },
+        { "id": "H06_depression", "name": "Great Depression and New Deal (Progressive legacy)", "years": "1929-1941", "censusWindow": "1930-1940", "note": "Brief paired this era with the Progressive Era; Progressive reforms are scored in H04 and their New Deal continuation here." },
+        { "id": "H06b_postwar", "name": "Postwar boom and Civil Rights (added)", "years": "1942-1980", "censusWindow": "1940-1980", "note": "Not in the original brief. Added so WWII industry, suburbanization, the Interstates, Sun Belt growth and the Civil Rights movement have a home; set weight to 0 to remove." },
+        { "id": "H07_reagan", "name": "Reagan era", "years": "1981-1992", "censusWindow": "1980-1990" },
+        { "id": "H08_tech_boom", "name": "Tech boom", "years": "1993-2007", "censusWindow": "1990-2010 (2000-2010 at half weight)" },
+        { "id": "H09_modern", "name": "Modern", "years": "2008-present", "censusWindow": "2010-2020 plus 2020-latest Census estimates" },
+        { "id": "H10_projection", "name": "Projections / future", "years": "2025-2050", "censusWindow": "Projected growth", "note": "10 x (0.60*projected growth percentile + 0.25*(1 - climate risk percentile, FEMA NRI) + 0.15*(1 - water stress percentile)); 10 = strongest projected growth with low risk." }
+      ],
+      "derived": ["dominant_era (argmax of H01-H09)", "history_depth (count of eras scoring 6 or more)"],
+      "sources": ["NHGIS decennial county populations 1790-2020", "Newberry Atlas of Historical County Boundaries", "ACS table B25034 (year structure built)", "National Register of Historic Places", "Census Bureau population estimates", "State demographer projections / UVA Weldon Cooper Center", "FEMA National Risk Index"]
+    },
+    {
+      "id": 2,
+      "key": "jobs",
+      "name": "Jobs / Main Unique Positions",
+      "weight": 1,
+      "description": "What the county does for a living, how specialized it is, and which historic industries still define it.",
+      "parameters": [
+        { "id": "J01_center_of_industry", "name": "Center of industry", "metric": "County share of national employment in its leading 3-digit NAICS industry (by location quotient, minimum 500 jobs). Score = 10 x percentile of log(share). Label = industry name.", "type": "categorical" },
+        { "id": "J02_specialization", "name": "Specialization", "metric": "0.6 x percentile of the maximum location quotient (LQ = local industry share / national industry share, industries with 500+ jobs) + 0.4 x percentile of the Hirschman-Herfindahl concentration index across 2-digit NAICS sectors. Plus USDA ERS economic type label (farming, mining, manufacturing, federal/state government, recreation, nonspecialized).", "type": "categorical" },
+        { "id": "J03_historical_differentiators", "name": "Historical differentiators", "metric": "Legacy industry index: for each legacy industry (coal, metal mining, steel, textiles, autos, timber/paper, fishing, oil & gas, railroads, tobacco, cotton, ranching, shipbuilding, defense), persistence = min(1, current LQ / peak historical LQ) and magnitude = percentile of peak historical LQ. Score = 10 x max over industries of (0.5*magnitude + 0.5*magnitude*persistence). A high score with low persistence means a lost industry that still shapes identity.", "type": "categorical" }
+      ],
+      "sources": ["BLS Quarterly Census of Employment and Wages", "Census County Business Patterns", "BEA CAEMP25N (includes farm and proprietors)", "USDA ERS County Typology Codes", "County and City Data Books 1947-1977 (historical LQ)", "Census of Manufactures (historical)"]
+    },
+    {
+      "id": 3,
+      "key": "linguistic",
+      "name": "Linguistic Regions",
+      "weight": 1,
+      "description": "Dialect membership from narrowest to most general scope, plus marked features and non-English language presence.",
+      "hierarchy": [
+        { "level": "L4", "scope": "Local features", "example": "Pittsburgh /aw/ monophthong ('dahntahn'), 'yinz'" },
+        { "level": "L3", "scope": "Dialect area", "example": "Western Pennsylvania" },
+        { "level": "L2", "scope": "Dialect region (Atlas of North American English)", "example": "Midland" },
+        { "level": "L1", "scope": "Macro region", "example": "North / Midland / South / West / Non-contiguous" }
+      ],
+      "parameters": [
+        { "id": "L01_dialect_assignment", "name": "Dialect assignment (L1-L3 labels)", "metric": "Labels from the ANAE map, with counties outside the surveyed cities assigned by nearest ANAE community within the same L2 region. Intensity = ANAE isogloss-bundle count passing through or enclosing the county, 0-10.", "type": "categorical" },
+        { "id": "L02_marked_features", "name": "Marked features (L4)", "metric": "Weighted count of features present that differ from General American (see featureInventory). Score = 10 x (sum of weights present / max observed sum).", "type": "score" },
+        { "id": "L03_non_english", "name": "Non-English language presence", "metric": "Percentile of share of population 5+ speaking a language other than English at home; label = top non-English language.", "type": "categorical" },
+        { "id": "L04_heritage_variety", "name": "Heritage / contact variety", "metric": "0-10 curated: 10 = a distinct contact variety or Indigenous language is spoken by a substantial share (Gullah, Louisiana French, Pennsylvania Dutch, Hawai'i Creole, Navajo, Yup'ik, New Mexican Spanish); 5 = present in heritage or revival form; 0 = none.", "type": "categorical" }
+      ],
+      "featureInventory": [
+        { "code": "non_rhotic", "weight": 2, "desc": "r-dropping ('pahk the cah')" },
+        { "code": "cot_caught_merged", "weight": 1, "desc": "cot and caught sound the same" },
+        { "code": "cot_caught_distinct_raised", "weight": 2, "desc": "raised THOUGHT vowel ('cawfee')" },
+        { "code": "pin_pen_merger", "weight": 1, "desc": "pin and pen sound the same" },
+        { "code": "northern_cities_shift", "weight": 2, "desc": "Inland North vowel rotation" },
+        { "code": "southern_shift", "weight": 2, "desc": "ay-monophthong ('rahd'), front vowel breaking" },
+        { "code": "california_shift", "weight": 1, "desc": "lowered TRAP/DRESS/KIT" },
+        { "code": "canadian_raising", "weight": 1, "desc": "raised onset in 'about', 'write'" },
+        { "code": "aw_monophthong", "weight": 2, "desc": "'dahntahn' (Pittsburgh)" },
+        { "code": "mary_marry_merry_distinct", "weight": 1, "desc": "three different vowels" },
+        { "code": "split_short_a", "weight": 2, "desc": "NYC / Philadelphia / Baltimore / New Orleans short-a system" },
+        { "code": "pre_velar_raising", "weight": 1, "desc": "'bag' as 'bayg' (PNW, Upper Midwest)" },
+        { "code": "monophthongal_o_e", "weight": 1, "desc": "Upper Midwest 'boat', 'bait'" },
+        { "code": "fill_feel_merger", "weight": 1, "desc": "pre-/l/ mergers (Utah, South)" },
+        { "code": "plural_you_yall", "weight": 1, "desc": "y'all" },
+        { "code": "plural_you_yinz_youse_youuns", "weight": 2, "desc": "yinz, youse, you'uns" },
+        { "code": "positive_anymore", "weight": 1, "desc": "'Anymore, we eat late' (Midland)" },
+        { "code": "needs_washed", "weight": 1, "desc": "'the car needs washed' (Midland)" },
+        { "code": "double_modals", "weight": 1, "desc": "'might could' (South)" },
+        { "code": "a_prefixing", "weight": 1, "desc": "'a-huntin'' (Appalachia, Ozarks)" },
+        { "code": "regional_intensifier", "weight": 1, "desc": "wicked (E. New England), hella (N. California)" },
+        { "code": "soft_drink_term", "weight": 0, "desc": "pop / soda / coke recorded as a label, unweighted" }
+      ],
+      "sources": ["Labov, Ash & Boberg, Atlas of North American English (2006)", "Dictionary of American Regional English", "Harvard Dialect Survey (Vaux)", "ACS table C16001 (language spoken at home)", "Census 2015 language list (Hawai'i Creole)"]
+    },
+    {
+      "id": 4,
+      "key": "religion",
+      "name": "Religious Views",
+      "weight": 1,
+      "description": "Percent of people who identify with each religious tradition, how religious the county is overall, and how unusual its mix is.",
+      "traditions": ["evangelical_protestant", "mainline_protestant", "black_protestant", "catholic", "latter_day_saints", "orthodox_christian", "jewish", "muslim", "hindu_buddhist_other_eastern", "other", "unaffiliated"],
+      "selfIdentificationMethod": "County-level self-identification surveys do not exist. Estimate it by raking: start from the state self-identification shares (Pew Religious Landscape Study 2023-24, PRRI Census of American Religion), then scale each tradition by the county's congregational adherence rate for that tradition relative to the state's (US Religion Census 2020), and renormalize to 100%. Report both the adherence figure and the self-identification estimate.",
+      "parameters": [
+        { "id": "R01_share_by_tradition", "name": "% identifying with each tradition", "metric": "Vector of 11 shares (estimated self-identification). Label = largest tradition.", "type": "categorical" },
+        { "id": "R02_religiosity", "name": "Religiosity", "metric": "Percentile of total congregational adherents per 1,000 residents.", "type": "score" },
+        { "id": "R03_concentration", "name": "Concentration", "metric": "Percentile of the Herfindahl index of tradition shares (high = one tradition dominates).", "type": "score" },
+        { "id": "R04_distinctiveness", "name": "Distinctiveness vs national mix", "metric": "Dissimilarity index = 0.5 x sum of |county share - national share| across traditions, scored as a percentile.", "type": "score" }
+      ],
+      "sources": ["US Religion Census 2020 (ASARB)", "Pew Religious Landscape Study 2023-24", "PRRI Census of American Religion"]
+    },
+    {
+      "id": 5,
+      "key": "environment",
+      "name": "Environment",
+      "weight": 1,
+      "description": "Rural-urban character, terrain and physical divides, and other geographic factors.",
+      "parameters": [
+        { "id": "E01_rural_urban", "name": "Rural vs urban", "metric": "0-10, 10 = most urban. 0.5 x (10 - (RUCC_2023 - 1) x 1.25) + 0.5 x 10 x percentile of log population density. Label = RUCC code.", "type": "score" },
+        { "id": "E02_terrain_divides", "name": "Mountains and other divides", "metric": "0.5 x percentile of local relief (standard deviation of elevation) + 0.5 x percentile of mean elevation. Labels: USGS physiographic division and province, side of the Continental Divide, side of the Cascade crest (WA/OR), Appalachian Regional Commission membership.", "type": "categorical" },
+        { "id": "E03_climate_water", "name": "Climate and water", "metric": "Aridity: 10 x (1 - percentile of the P/PET aridity index), so 10 = most arid. Labels: Koppen climate class, desert name if any, HUC-2 river basin, Great Basin internal drainage flag.", "type": "categorical" },
+        { "id": "E04_position_flags", "name": "Positional factors", "metric": "Labels (not scored): east/west/straddles the Mississippi, east/west of the 100th meridian, coastline (Atlantic, Gulf, Pacific, Great Lakes, Arctic, none), EPA Level III ecoregion. Score = federal land share percentile.", "type": "categorical" },
+        { "id": "E05_hazard_exposure", "name": "Hazard exposure", "metric": "Percentile of FEMA National Risk Index expected annual loss score. Label = top hazard.", "type": "score" }
+      ],
+      "sources": ["USDA ERS Rural-Urban Continuum Codes 2023", "Census 2020 urban areas", "USGS 3DEP elevation", "USGS physiographic divisions (Fenneman)", "PRISM climate normals", "Global Aridity Index", "EPA ecoregions", "USGS Protected Areas Database (federal land)", "FEMA National Risk Index"]
+    },
+    {
+      "id": 6,
+      "key": "voting",
+      "name": "Voting History",
+      "weight": 1,
+      "description": "Partisan lean, direction of change, volatility, turnout and historical alignment.",
+      "parameters": [
+        { "id": "V01_partisan_lean", "name": "Partisan lean", "type": "signed", "metric": "Two-party Republican margin minus national two-party margin, averaged over 2016, 2020 and 2024 presidential elections (weights 0.25, 0.35, 0.40). Score = clamp(lean_points / 5, -10, +10). -10 = D+50 or more relative to nation, +10 = R+50 or more." },
+        { "id": "V02_trend", "name": "Trend", "type": "signed", "metric": "OLS slope of relative margin per cycle, 2000-2024. Score = clamp(slope / 1.5, -10, +10); positive = moving Republican." },
+        { "id": "V03_volatility", "name": "Volatility", "type": "score", "metric": "Percentile of standard deviation of cycle-to-cycle relative swing, 2000-2024." },
+        { "id": "V04_turnout", "name": "Turnout", "type": "score", "metric": "Percentile of 2020-2024 average presidential votes / citizen voting-age population (ACS CVAP)." },
+        { "id": "V05_historical_alignment", "name": "Historical alignment", "type": "categorical", "metric": "Party carried in the realignment benchmark elections 1896, 1932, 1964, 1980, 2008 and 2024, stored as a 6-letter string (e.g. 'DDDRDR'). Score = 10 x number of party switches between benchmarks / 5." }
+      ],
+      "sources": ["MIT Election Data + Science Lab county returns 2000-2024", "ICPSR 8611 / Dave Leip's Atlas (historical county returns)", "ACS CVAP special tabulation"],
+      "caveats": ["Alaska reports presidential results by state house district, not by borough; allocate precinct results to boroughs before scoring.", "Connecticut and New England results are reported by town; aggregate to planning regions / counties."]
+    }
+  ],
+  "verification": {
+    "id": 7,
+    "key": "verification",
+    "name": "Final verification (per capita and per area)",
+    "description": "Every count-based metric is computed three ways (raw, per 1,000 residents, per square mile) and checked before any score is accepted. Per square foot is supported as a display unit (per sq mi / 27,878,400) but scoring uses per square mile, because per-square-foot values for counties are too small to read.",
+    "checks": [
+      { "id": "C1_size_bias", "test": "Spearman correlation of each parameter with log(population) and with log(area).", "rule": "If |rho| > 0.6, the parameter is mostly measuring size: switch it to its per-capita or per-area form, or note why size is the point." },
+      { "id": "C2_small_numbers", "test": "Rate metrics in counties under 5,000 residents.", "rule": "Apply the shrinkage rule from scale.smallCountyShrinkage; mark confidence no higher than B." },
+      { "id": "C3_rank_agreement", "test": "Compare a county's rank on raw, per-capita and per-area versions of the same metric.", "rule": "Top decile raw but below median per capita = 'scale-driven'; below median raw but top decile per capita = 'small-but-intense'. Both flags are reported, not hidden." },
+      { "id": "C4_regional_coherence", "test": "z-score of each category score within the county's region.", "rule": "|z| > 3 goes to manual review; confirmed outliers are kept and annotated." },
+      { "id": "C5_known_answers", "test": "Benchmark counties with well-established expected results (see PARAMETERS.md).", "rule": "Any benchmark landing outside its expected band blocks release of that category until fixed." },
+      { "id": "C6_temporal_stability", "test": "Re-score with the previous data vintage.", "rule": "A category moving more than 20 points without a documented real-world cause is investigated." }
+    ],
+    "confidenceGrade": "A = all inputs county-level and current; B = some inputs shrunk, interpolated or state-derived; C = mostly curated or region-default values."
+  },
+  "composite": {
+    "categoryScores": "history, jobs, linguistic, religion, environment, voting: each 0-100.",
+    "compositeScore": "Weighted mean of the six category scores using category weights (default equal). Treat as an intensity/distinctiveness index, not a quality ranking.",
+    "regionalTypicality": "Cosine similarity (0-1) between the county's vector of all sub-parameter scores and the mean vector of its assigned region. High = textbook example of the region; low = outlier or border county."
+  }
+}
